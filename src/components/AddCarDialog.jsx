@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { categories, tuningParts } from '../data/mockCars';
 import './AddCarDialog.css';
 
-const AddCarDialog = ({ isOpen, onClose, onAdd }) => {
+const AddCarDialog = ({ isOpen, onClose, onAdd, defaultUser }) => {
   const [formData, setFormData] = useState({
     seller: '',
     brand: '',
@@ -18,14 +18,22 @@ const AddCarDialog = ({ isOpen, onClose, onAdd }) => {
   const [isDragActive, setIsDragActive] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
       setFormData({ 
-        seller: '', brand: '', model: '', plate: '', phone: '', price: '', 
-        category: '', status: 'available', tuning: [], image: null 
+        seller: defaultUser?.name || '', 
+        brand: '', 
+        model: '', 
+        plate: '', 
+        phone: defaultUser?.phone || '', 
+        price: '', 
+        category: '', 
+        status: 'available', 
+        tuning: [], 
+        image: null 
       });
       setIsDragActive(false);
     }
-  }, [isOpen]);
+  }, [isOpen, defaultUser]);
 
   if (!isOpen) return null;
 

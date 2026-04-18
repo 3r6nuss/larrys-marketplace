@@ -3,7 +3,9 @@ import { mockCars as initialCars } from './data/mockCars';
 import Header from './components/Header';
 import CarCard from './components/CarCard';
 import AddCarDialog from './components/AddCarDialog';
+import StaffManagement from './components/StaffManagement';
 import { categories } from './data/mockCars';
+import { mockEmployees } from './data/mockEmployees';
 import './App.css';
 
 function App() {
@@ -11,6 +13,10 @@ function App() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [currentView, setCurrentView] = useState('marketplace');
   const [selectedCarForTicket, setSelectedCarForTicket] = useState(null);
+  
+  // Employees State
+  const [employees, setEmployees] = useState(mockEmployees);
+  const [defaultUserId, setDefaultUserId] = useState(1); // Default to Marco Steiner
   
   // Filters
   const [sellerFilter, setSellerFilter] = useState('');
@@ -26,10 +32,18 @@ function App() {
     setCurrentView('ticket');
   };
 
+  const handleAddEmployee = (newEmp) => {
+    setEmployees([...employees, newEmp]);
+  };
+
+  const handleSetDefaultUser = (id) => {
+    setDefaultUserId(id);
+  };
+
   if (currentView === 'ticket') {
     return (
       <div className="app">
-        <Header />
+        <Header currentView={currentView} setCurrentView={setCurrentView} />
         <main className="container ticket-page">
           <div className="ticket-content glass">
             <h2>🎫 Support-Ticket erstellen</h2>
@@ -45,6 +59,22 @@ function App() {
               Zurück zum Marketplace
             </button>
           </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (currentView === 'employees') {
+    return (
+      <div className="app">
+        <Header currentView={currentView} setCurrentView={setCurrentView} />
+        <main className="container">
+          <StaffManagement 
+            employees={employees} 
+            onAddEmployee={handleAddEmployee}
+            defaultUserId={defaultUserId}
+            onSetDefaultUser={handleSetDefaultUser}
+          />
         </main>
       </div>
     );
@@ -72,7 +102,7 @@ function App() {
 
   return (
     <div className="app">
-      <Header />
+      <Header currentView={currentView} setCurrentView={setCurrentView} />
       
       <main className="container marketplace-container">
         
@@ -139,6 +169,7 @@ function App() {
         isOpen={isDialogOpen} 
         onClose={() => setIsDialogOpen(false)} 
         onAdd={handleAddCar} 
+        defaultUser={employees.find(e => e.id === defaultUserId)}
       />
     </div>
   )

@@ -1,0 +1,205 @@
+.dialog-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog-content {
+  background: rgba(17, 17, 19, 0.95);
+  padding: 2rem;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.8), 0 0 0 1px var(--color-border);
+}
+
+.dialog-content h2 {
+  margin-bottom: 1.5rem;
+  color: var(--color-primary);
+  font-family: var(--font-heading);
+}
+
+.image-paste-area {
+  margin-bottom: 1.5rem;
+  height: 140px;
+  border: 2px dashed var(--color-border);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  transition: all 0.3s;
+  cursor: pointer;
+  background: rgba(0,0,0,0.2);
+  overflow: hidden;
+  position: relative;
+}
+
+.image-paste-area:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.image-paste-area.active {
+  background: rgba(0, 194, 168, 0.1);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.image-paste-area.has-image {
+  border-style: solid;
+  border-color: var(--color-primary);
+  background: #000;
+}
+
+.image-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.image-paste-area p {
+  padding: 1rem;
+  pointer-events: none;
+  line-height: 1.5;
+}
+
+.form-group {
+  margin-bottom: 1.2rem;
+}
+
+.row {
+  display: flex;
+  gap: 1rem;
+}
+
+.input-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.input-group label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.4rem;
+}
+
+.input-group input, .input-group select {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--color-border);
+  padding: 0.8rem;
+  border-radius: 6px;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  transition: all 0.3s;
+}
+
+.input-group input:focus, .input-group select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.input-group select option {
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+}
+
+.tuning-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 0.5rem;
+}
+
+.tuning-checkbox {
+  flex: 1;
+  min-width: calc(50% - 0.5rem);
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 0.5rem 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.85rem;
+}
+
+.tuning-checkbox:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+.tuning-checkbox.active {
+  border-color: var(--color-primary);
+  background: rgba(0, 194, 168, 0.1);
+  color: var(--color-primary);
+}
+
+.tuning-checkbox input {
+  display: none;
+}
+
+.tuning-icon-wrapper-small {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tuning-icon-wrapper-small img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 0.8rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-weight: 500;
+}
+
+.btn-secondary:hover {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: #000;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(0, 194, 168, 0.4);
+  transition: all 0.3s;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 194, 168, 0.6);
+}

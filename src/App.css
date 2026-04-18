@@ -1,0 +1,208 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.marketplace-container {
+  padding-top: 3rem;
+  padding-bottom: 5rem;
+}
+
+.controls-bar {
+  padding: 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 2.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.filters-wrapper {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filter-group label {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.filter-group select {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.3s;
+  min-width: 250px;
+}
+
+.filter-group select:focus, .filter-group select:hover {
+  border-color: var(--color-primary);
+}
+
+.filter-group select option {
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+}
+
+.action-group {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.car-count {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.no-results {
+  text-align: center;
+  padding: 4rem 2rem;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.no-results p {
+  color: var(--color-text-muted);
+  font-size: 1.1rem;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 0.8rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-weight: 500;
+}
+
+.btn-secondary:hover {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+}
+
+.car-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 2rem;
+}
+
+.btn-add {
+  background: rgba(0, 194, 168, 0.1);
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  padding: 0.8rem 1.5rem;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-add:hover {
+  background: var(--color-primary);
+  color: #000;
+  box-shadow: 0 0 15px var(--color-primary-glow);
+}
+
+/* Ticket Page */
+.ticket-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 120px);
+  padding: 2rem;
+}
+
+.ticket-content {
+  max-width: 600px;
+  width: 100%;
+  padding: 3rem;
+  border-radius: 20px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ticket-content h2 {
+  font-family: var(--font-heading);
+  color: var(--color-primary);
+  margin-bottom: 1.5rem;
+  font-size: 2rem;
+}
+
+.ticket-info {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 1.2rem;
+  border-radius: 12px;
+  margin-bottom: 2.5rem;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+.ticket-info strong {
+  color: #fff;
+}
+
+.ticket-placeholder {
+  margin-bottom: 3rem;
+  position: relative;
+}
+
+.ticket-placeholder p {
+  font-size: 1.2rem;
+  color: #fff;
+  opacity: 0.8;
+}
+
+.placeholder-animation {
+  width: 100%;
+  height: 4px;
+  background: rgba(0, 194, 168, 0.1);
+  border-radius: 2px;
+  margin-top: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.placeholder-animation::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -50%;
+  width: 50%;
+  height: 100%;
+  background: var(--color-primary);
+  box-shadow: 0 0 10px var(--color-primary);
+  animation: loading 2s infinite;
+}
+
+@keyframes loading {
+  0% { left: -50%; }
+  100% { left: 150%; }
+}

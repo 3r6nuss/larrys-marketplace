@@ -34,12 +34,12 @@ services:
       DB_NAME: larrys
       DB_USER: larrys
       DB_PASSWORD: larrys_secret
-      PORT: 3001
+      PORT: 3002
       CORS_ORIGIN: "*"
     volumes:
       - uploads:/app/uploads
     ports:
-      - "3001:3001"
+      - "3002:3002"
 
   # Frontend (Nginx)
   larrys-marketplace:

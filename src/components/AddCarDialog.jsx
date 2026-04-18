@@ -13,9 +13,11 @@ const AddCarDialog = ({ isOpen, onClose, onAdd, defaultUser }) => {
     category: '',
     status: 'available',
     tuning: [],
-    image: null
+    imageFile: null,
+    imagePreview: null
   });
   const [isDragActive, setIsDragActive] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -29,9 +31,11 @@ const AddCarDialog = ({ isOpen, onClose, onAdd, defaultUser }) => {
         category: '', 
         status: 'available', 
         tuning: [], 
-        image: null 
+        imageFile: null,
+        imagePreview: null
       });
       setIsDragActive(false);
+      setIsSubmitting(false);
     }
   }, [isOpen, defaultUser]);
 
@@ -52,9 +56,14 @@ const AddCarDialog = ({ isOpen, onClose, onAdd, defaultUser }) => {
 
   const handleImageFile = (file) => {
     if (file && file.type.startsWith('image/')) {
+      // Store the actual File object for upload
       const reader = new FileReader();
       reader.onload = (event) => {
-        setFormData(prev => ({ ...prev, image: event.target.result }));
+        setFormData(prev => ({ 
+          ...prev, 
+          imageFile: file,
+          imagePreview: event.target.result 
+        }));
       };
       reader.readAsDataURL(file);
     }
@@ -89,22 +98,43 @@ const AddCarDialog = ({ isOpen, onClose, onAdd, defaultUser }) => {
     setIsDragActive(false);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
     
-    // Create numeric price for sorting
+    // Build FormData for multipart upload
+    const fd = new FormData();
+    fd.append('seller', formData.seller);
+    fd.append('brand', formData.brand);
+    fd.append('model', formData.model);
+    fd.append('plate', formData.plate);
+    fd.append('phone', formData.phone);
+    
+    // Parse price
     const numericPrice = parseInt(formData.price.replace(/[^0-9]/g, ''), 10) || 0;
+    fd.append('price', numericPrice.toString());
     
-    onAdd({
-      id: Date.now(),
-      ...formData,
-      price: numericPrice,
-      priceLabel: formData.price.includes('$') || formData.price.toLowerCase().includes('auf anfrage') 
-        ? formData.price 
-        : `$ ${formData.price}`,
-      image: formData.image || '/mockups/sport.png' // Fallback
-    });
-    onClose();
+    const priceLabel = formData.price.includes('$') || formData.price.toLowerCase().includes('auf anfrage')
+      ? formData.price
+      : `$ ${formData.price}`;
+    fd.append('price_label', priceLabel);
+    
+    fd.append('category', formData.category);
+    fd.append('status', formData.status);
+    fd.append('tuning', JSON.stringify(formData.tuning));
+    
+    if (formData.imageFile) {
+      fd.append('image', formData.imageFile);
+    }
+
+    try {
+      await onAdd(fd);
+      onClose();
+    } catch (err) {
+      console.error('Submit error:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -118,14 +148,14 @@ const AddCarDialog = ({ isOpen, onClose, onAdd, defaultUser }) => {
         <form onSubmit={handleSubmit}>
           
           <div 
-            className={`image-paste-area ${isDragActive ? 'active' : ''} ${formData.image ? 'has-image' : ''}`}
+            className={`image-paste-area ${isDragActive ? 'active' : ''} ${formData.imagePreview ? 'has-image' : ''}`}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             tabIndex={0}
           >
-            {formData.image ? (
-              <img src={formData.image} alt="Preview" className="image-preview" />
+            {formData.imagePreview ? (
+              <img src={formData.imagePreview} alt="Preview" className="image-preview" />
             ) : (
               <p>📸 Bild hierher ziehen oder <strong>Strg+V / Cmd+V</strong> drücken, um es aus der Zwischenablage einzufügen</p>
             )}
@@ -202,8 +232,10 @@ const AddCarDialog = ({ isOpen, onClose, onAdd, defaultUser }) => {
           </div>
 
           <div className="form-actions">
-            <button type="button" className="btn-secondary" onClick={onClose}>Abbrechen</button>
-            <button type="submit" className="btn-primary">Inserat speichern</button>
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={isSubmitting}>Abbrechen</button>
+            <button type="submit" className="btn-primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Wird gespeichert...' : 'Inserat speichern'}
+            </button>
           </div>
         </form>
       </div>

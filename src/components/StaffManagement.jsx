@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import './StaffManagement.css';
 
-const StaffManagement = ({ employees, onAddEmployee, defaultUserId, onSetDefaultUser }) => {
+const StaffManagement = ({ employees, onAddEmployee, onDeleteEmployee, defaultUserId, onSetDefaultUser }) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState('');
@@ -12,7 +12,6 @@ const StaffManagement = ({ employees, onAddEmployee, defaultUserId, onSetDefault
     if (!newName || !newRole) return;
 
     onAddEmployee({
-      id: Date.now(),
       name: newName,
       role: newRole,
       phone: newPhone
@@ -22,6 +21,12 @@ const StaffManagement = ({ employees, onAddEmployee, defaultUserId, onSetDefault
     setNewRole('');
     setNewPhone('');
     setShowAddForm(false);
+  };
+
+  const handleDelete = (emp) => {
+    if (confirm(`"${emp.name}" wirklich löschen?`)) {
+      onDeleteEmployee(emp.id);
+    }
   };
 
   return (
@@ -87,6 +92,13 @@ const StaffManagement = ({ employees, onAddEmployee, defaultUserId, onSetDefault
                   Als Standard setzen
                 </button>
               )}
+              <button 
+                className="btn-delete-small" 
+                onClick={() => handleDelete(emp)}
+                title="Mitarbeiter löschen"
+              >
+                🗑️
+              </button>
             </div>
           </div>
         ))}

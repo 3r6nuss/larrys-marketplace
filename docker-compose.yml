@@ -1,9 +1,56 @@
 version: '3.8'
 
 services:
+  # PostgreSQL Database
+  larrys-db:
+    image: postgres:16-alpine
+    container_name: larrys-db
+    restart: always
+    environment:
+      POSTGRES_DB: larrys
+      POSTGRES_USER: larrys
+      POSTGRES_PASSWORD: larrys_secret
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U larrys"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  larrys-api:
+    build: ./server
+    container_name: larrys-api
+    restart: always
+    depends_on:
+      larrys-db:
+        condition: service_healthy
+    environment:
+      DB_HOST: larrys-db
+      DB_PORT: 5432
+      DB_NAME: larrys
+      DB_USER: larrys
+      DB_PASSWORD: larrys_secret
+      PORT: 3001
+      CORS_ORIGIN: "*"
+    volumes:
+      - uploads:/app/uploads
+    ports:
+      - "3001:3001"
+
+  # Frontend (Nginx)
   larrys-marketplace:
     build: .
     container_name: larrys-marketplace
+    depends_on:
+      - larrys-api
     ports:
       - "8080:80"
     restart: always
+
+volumes:
+  pgdata:
+  uploads:

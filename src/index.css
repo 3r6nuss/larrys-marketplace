@@ -1,47 +1,123 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@400;600;800&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
 
 :root {
-  --color-bg: #09090b;
-  --color-bg-elevated: #111113;
-  --color-bg-card: rgba(255, 255, 255, 0.03);
-  --color-text: #f8fafc;
-  --color-text-muted: #94a3b8;
-  --color-primary: #00C2A8;
-  --color-primary-glow: rgba(0, 194, 168, 0.3);
-  --color-border: rgba(255, 255, 255, 0.08);
-
-  --font-heading: 'Outfit', sans-serif;
-  --font-body: 'Inter', sans-serif;
+  --radius: 0.625rem;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/*
+ * Larry's Marketplace — Dark Theme (shadcn/ui compatible)
+ * Turquoise/Cyan accent on dark charcoal base
+ * We use dark as default — no .dark class needed.
+ */
+
+@theme inline {
+  --color-background: oklch(0.10 0.005 260);
+  --color-foreground: oklch(0.985 0 0);
+  --color-card: oklch(0.15 0.008 260);
+  --color-card-foreground: oklch(0.985 0 0);
+  --color-popover: oklch(0.15 0.008 260);
+  --color-popover-foreground: oklch(0.985 0 0);
+  --color-primary: oklch(0.72 0.16 190);
+  --color-primary-foreground: oklch(0.10 0.02 190);
+  --color-secondary: oklch(0.20 0.015 260);
+  --color-secondary-foreground: oklch(0.93 0 0);
+  --color-muted: oklch(0.18 0.010 260);
+  --color-muted-foreground: oklch(0.60 0.01 260);
+  --color-accent: oklch(0.72 0.16 190);
+  --color-accent-foreground: oklch(0.10 0.02 190);
+  --color-destructive: oklch(0.55 0.22 27);
+  --color-destructive-foreground: oklch(0.985 0 0);
+  --color-border: oklch(0.25 0.01 260);
+  --color-input: oklch(0.22 0.01 260);
+  --color-ring: oklch(0.72 0.16 190);
+  --color-chart-1: oklch(0.72 0.16 190);
+  --color-chart-2: oklch(0.62 0.15 160);
+  --color-chart-3: oklch(0.55 0.15 220);
+  --color-chart-4: oklch(0.70 0.12 80);
+  --color-chart-5: oklch(0.60 0.18 300);
+  --color-sidebar: oklch(0.08 0.005 260);
+  --color-sidebar-foreground: oklch(0.93 0 0);
+  --color-sidebar-primary: oklch(0.72 0.16 190);
+  --color-sidebar-primary-foreground: oklch(0.10 0.02 190);
+  --color-sidebar-accent: oklch(0.18 0.012 260);
+  --color-sidebar-accent-foreground: oklch(0.93 0 0);
+  --color-sidebar-border: oklch(0.22 0.01 260);
+  --color-sidebar-ring: oklch(0.72 0.16 190);
+
+  --color-success: oklch(0.65 0.17 145);
+  --color-warning: oklch(0.75 0.15 75);
+
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-heading: var(--font-sans);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-body {
-  background-color: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-body);
-  -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
-  overflow-x: hidden;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    min-height: 100vh;
+  }
+
+  html {
+    @apply font-sans;
+  }
+
+  /* Premium scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: oklch(0.30 0.01 260);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.40 0.01 260);
+  }
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-heading);
+/* Animated gradient background for login page */
+.gradient-bg {
+  background: linear-gradient(
+    135deg,
+    oklch(0.08 0.01 260) 0%,
+    oklch(0.12 0.04 200) 50%,
+    oklch(0.08 0.01 260) 100%
+  );
+  background-size: 200% 200%;
+  animation: gradientShift 8s ease-in-out infinite;
 }
 
-.glass {
-  background: var(--color-bg-card);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--color-border);
+@keyframes gradientShift {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 100% 100%; }
+  100% { background-position: 0% 0%; }
 }
 
-.container {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 0 1.5rem;
+/* Glow effect for primary accent elements */
+.glow-primary {
+  box-shadow: 0 0 20px oklch(0.72 0.16 190 / 0.15),
+              0 0 40px oklch(0.72 0.16 190 / 0.05);
 }

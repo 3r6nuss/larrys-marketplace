@@ -242,9 +242,50 @@ export async function migrate() {
         sold_at         TEXT,
         sold_by         INTEGER,
         sold_to_name    TEXT,
-        sold_price      INTEGER
+        sold_price      INTEGER,
+        is_featured     INTEGER DEFAULT 0
       )
     `);
+
+    // Migration: Add is_featured if it doesn't exist on older DBs
+    try {
+      await client.query(`ALTER TABLE listings ADD COLUMN is_featured INTEGER DEFAULT 0`);
+    } catch (e) {
+      // Column already exists — ignore
+    }
+
+    // Multi-image support
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS listing_images (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        listing_id  INTEGER NOT NULL,
+        image_path  TEXT NOT NULL,
+        sort_order  INTEGER DEFAULT 0,
+        is_cover    INTEGER DEFAULT 0,
+        uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Migration: Move existing listings.image_path into listing_images (one-time)
+    try {
+      const existing = await client.query(
+        `SELECT id, image_path FROM listings WHERE image_path IS NOT NULL AND image_path != ''`
+      );
+      for (const row of existing.rows) {
+        const already = await client.query(
+          `SELECT id FROM listing_images WHERE listing_id = ? AND image_path = ?`,
+          [row.id, row.image_path]
+        );
+        if (already.rows.length === 0) {
+          await client.query(
+            `INSERT INTO listing_images (listing_id, image_path, sort_order, is_cover) VALUES (?, ?, 0, 1)`,
+            [row.id, row.image_path]
+          );
+        }
+      }
+    } catch (e) {
+      console.error('Image migration error (non-critical):', e.message);
+    }
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS tickets (

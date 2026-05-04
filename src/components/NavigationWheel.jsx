@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
-import { Car, LayoutDashboard, Ticket, Package, Calculator, Vault } from 'lucide-react';
+import { Car, Home, LayoutDashboard, Ticket, Package, Calculator, Vault } from 'lucide-react';
 
 function polarToCartesian(centerX, centerY, radius, angleInDegrees) {
   const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
@@ -79,8 +79,9 @@ export default function NavigationWheel() {
   };
 
   const navItems = [
+    { title: 'Home', url: '/', icon: Home, public: true },
     { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard, minRole: 'mitarbeiter' },
-    { title: 'Katalog', url: '/', icon: Car, public: true },
+    { title: 'Katalog', url: '/catalog', icon: Car, public: true },
     { title: 'Meine Inserate', url: '/dashboard/listings', icon: Package, minRole: 'mitarbeiter' },
     { title: 'Tickets', url: '/dashboard/tickets', icon: Ticket, minRole: 'kunde' },
     { title: 'Rechner', url: '/dashboard/calculator', icon: Calculator, minRole: 'mitarbeiter' },

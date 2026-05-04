@@ -1,5 +1,6 @@
 import {
   Car,
+  Home,
   LayoutDashboard,
   Ticket,
   Package,
@@ -60,7 +61,8 @@ export default function AppSidebar() {
   const location = useLocation();
 
   const mainNav = [
-    { title: 'Katalog', url: '/', icon: Car, public: true },
+    { title: 'Home', url: '/', icon: Home, public: true },
+    { title: 'Katalog', url: '/catalog', icon: Car, public: true },
     { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard, minRole: 'mitarbeiter' },
     { title: 'Meine Inserate', url: '/dashboard/listings', icon: Package, minRole: 'mitarbeiter' },
     { title: 'Tickets', url: '/dashboard/tickets', icon: Ticket, minRole: 'kunde' },
@@ -80,6 +82,7 @@ export default function AppSidebar() {
 
   const isActive = (url) => {
     if (url === '/') return location.pathname === '/';
+    if (url === '/catalog') return location.pathname === '/catalog';
     if (url === '/dashboard') return location.pathname === '/dashboard';
     return location.pathname.startsWith(url);
   };

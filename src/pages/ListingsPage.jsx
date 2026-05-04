@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Plus, MoreHorizontal, Pencil, Trash2, Eye, Car, ImagePlus, X, ClipboardPaste } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash2, Eye, Car, ImagePlus, X, ClipboardPaste, Star, GripVertical, Crown } from 'lucide-react';
 
 const CATEGORIES = ['Sport', 'SUV', 'Muscle', 'Limousine', 'Kompakt', 'Coupé', 'Offroad', 'Van', 'Sonstige'];
 const STATUS_MAP = {
@@ -28,9 +28,10 @@ export default function ListingsPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingListing, setEditingListing] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
-  const [imageBase64, setImageBase64] = useState(null);
+  const [images, setImages] = useState([]); // { id?, preview, base64?, isExisting?, isCover }
+  const [dragIdx, setDragIdx] = useState(null);
   const dropZoneRef = useRef(null);
+  const MAX_IMAGES = 8;
 
   // Form state
   const [form, setForm] = useState({
@@ -63,7 +64,7 @@ export default function ListingsPage() {
     fetchCatalog();
   }, [fetchListings, fetchCatalog]);
 
-  // ── Clipboard Paste (Strg+V) ──
+  // ── Clipboard Paste (Strg+V) — adds to multi-image array ──
   useEffect(() => {
     const handlePaste = (e) => {
       if (!dialogOpen) return;
@@ -72,13 +73,22 @@ export default function ListingsPage() {
       for (const item of items) {
         if (item.type.startsWith('image/')) {
           e.preventDefault();
-          const file = item.getAsFile();
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            setImagePreview(ev.target.result);
-            setImageBase64(ev.target.result);
-          };
-          reader.readAsDataURL(file);
+          setImages(prev => {
+            if (prev.length >= MAX_IMAGES) { toast.error(`Maximal ${MAX_IMAGES} Bilder.`); return prev; }
+            const file = item.getAsFile();
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              const newImg = { preview: ev.target.result, base64: ev.target.result, isCover: false };
+              setImages(curr => {
+                if (curr.length >= MAX_IMAGES) return curr;
+                const updated = [...curr, newImg];
+                if (updated.filter(i => i.isCover).length === 0 && updated.length > 0) updated[0].isCover = true;
+                return updated;
+              });
+            };
+            reader.readAsDataURL(file);
+            return prev;
+          });
           toast.success('Bild eingefügt!');
           break;
         }
@@ -91,12 +101,11 @@ export default function ListingsPage() {
   const openCreate = () => {
     setEditingListing(null);
     setForm({ brand: '', model: '', plate: '', category: '', custom_price: '', discount_pct: '', notes: '' });
-    setImagePreview(null);
-    setImageBase64(null);
+    setImages([]);
     setDialogOpen(true);
   };
 
-  const openEdit = (listing) => {
+  const openEdit = async (listing) => {
     setEditingListing(listing);
     setForm({
       brand: listing.brand || '',
@@ -107,9 +116,65 @@ export default function ListingsPage() {
       discount_pct: listing.discount_pct?.toString() || '',
       notes: listing.notes || '',
     });
-    setImagePreview(listing.image_path || null);
-    setImageBase64(null);
+    // Fetch existing images
+    try {
+      const res = await fetch(`/api/listings/${listing.id}`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setImages((data.images || []).map(img => ({
+          id: img.id, preview: img.image_path, isCover: !!img.is_cover, isExisting: true,
+        })));
+      } else {
+        setImages([]);
+      }
+    } catch { setImages([]); }
     setDialogOpen(true);
+  };
+
+  const handleRemoveImage = async (idx) => {
+    const img = images[idx];
+    if (img.isExisting && img.id && editingListing) {
+      try {
+        await fetch(`/api/listings/${editingListing.id}/images/${img.id}`, { method: 'DELETE', credentials: 'include' });
+      } catch {}
+    }
+    setImages(prev => {
+      const updated = prev.filter((_, i) => i !== idx);
+      if (updated.length > 0 && !updated.some(i => i.isCover)) updated[0].isCover = true;
+      return updated;
+    });
+  };
+
+  const handleSetCover = (idx) => {
+    setImages(prev => prev.map((img, i) => ({ ...img, isCover: i === idx })));
+  };
+
+  const handleDragStart = (idx) => setDragIdx(idx);
+  const handleDragOver = (e, idx) => {
+    e.preventDefault();
+    if (dragIdx === null || dragIdx === idx) return;
+    setImages(prev => {
+      const updated = [...prev];
+      const [moved] = updated.splice(dragIdx, 1);
+      updated.splice(idx, 0, moved);
+      return updated;
+    });
+    setDragIdx(idx);
+  };
+  const handleDragEnd = async () => {
+    setDragIdx(null);
+    // Save new order for existing images
+    if (editingListing) {
+      const existingIds = images.filter(i => i.isExisting && i.id).map(i => i.id);
+      if (existingIds.length > 1) {
+        try {
+          await fetch(`/api/listings/${editingListing.id}/images/reorder`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', body: JSON.stringify({ order: existingIds }),
+          });
+        } catch {}
+      }
+    }
   };
 
   const handleSubmit = async () => {
@@ -119,29 +184,56 @@ export default function ListingsPage() {
     }
 
     const body = { ...form };
-    if (imageBase64) body.image_base64 = imageBase64;
+    const newImages = images.filter(i => !i.isExisting && i.base64);
 
-    try {
-      const url = editingListing ? `/api/listings/${editingListing.id}` : '/api/listings';
-      const method = editingListing ? 'PUT' : 'POST';
+    if (editingListing) {
+      // For edit: upload new images separately
+      try {
+        const res = await fetch(`/api/listings/${editingListing.id}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', body: JSON.stringify(body),
+        });
+        if (!res.ok) { const d = await res.json(); toast.error(d.error || 'Fehler.'); return; }
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body),
-      });
+        // Upload new images
+        for (const img of newImages) {
+          await fetch(`/api/listings/${editingListing.id}/images`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', body: JSON.stringify({ image_base64: img.base64 }),
+          });
+        }
 
-      if (res.ok) {
-        toast.success(editingListing ? 'Inserat aktualisiert!' : 'Inserat erstellt!');
+        // Set cover
+        const coverImg = images.find(i => i.isCover && i.isExisting && i.id);
+        if (coverImg) {
+          await fetch(`/api/listings/${editingListing.id}/images/${coverImg.id}/cover`, {
+            method: 'PUT', credentials: 'include',
+          });
+        }
+
+        toast.success('Inserat aktualisiert!');
         setDialogOpen(false);
         fetchListings();
-      } else {
-        const data = await res.json();
-        toast.error(data.error || 'Fehler beim Speichern.');
-      }
-    } catch (err) {
-      toast.error('Netzwerkfehler.');
+      } catch { toast.error('Netzwerkfehler.'); }
+    } else {
+      // For create: send first image as image_base64, rest as images_base64 array
+      if (newImages.length > 0) body.image_base64 = newImages[0].base64;
+      if (newImages.length > 1) body.images_base64 = JSON.stringify(newImages.slice(1).map(i => i.base64));
+
+      try {
+        const res = await fetch('/api/listings', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', body: JSON.stringify(body),
+        });
+        if (res.ok) {
+          toast.success('Inserat erstellt!');
+          setDialogOpen(false);
+          fetchListings();
+        } else {
+          const data = await res.json();
+          toast.error(data.error || 'Fehler beim Speichern.');
+        }
+      } catch { toast.error('Netzwerkfehler.'); }
     }
   };
 
@@ -175,9 +267,28 @@ export default function ListingsPage() {
     }
   };
 
+  const handleFeatureToggle = async (id) => {
+    try {
+      const res = await fetch(`/api/listings/${id}/feature`, {
+        method: 'PUT',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(data.is_featured ? '⭐ Als Featured markiert!' : 'Featured-Markierung entfernt.');
+        fetchListings();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Fehler.');
+      }
+    } catch (err) {
+      toast.error('Netzwerkfehler.');
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto">
+      <div className="flex items-center justify-between pb-2 border-b border-border/40">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Meine Inserate</h1>
           <p className="text-muted-foreground mt-1">Verwalte deine Fahrzeug-Inserate.</p>
@@ -229,7 +340,12 @@ export default function ListingsPage() {
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className="font-medium">{l.brand} {l.model}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-1.5">
+                        {l.is_featured ? <Star className="h-3.5 w-3.5 text-orange-400 fill-orange-400 shrink-0" /> : null}
+                        {l.brand} {l.model}
+                      </div>
+                    </TableCell>
                     <TableCell className="font-mono text-sm">{l.plate || '—'}</TableCell>
                     <TableCell>
                       {l.category && <Badge variant="outline" className="text-xs">{l.category}</Badge>}
@@ -255,6 +371,10 @@ export default function ListingsPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => openEdit(l)}>
                             <Pencil className="mr-2 h-4 w-4" /> Bearbeiten
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleFeatureToggle(l.id)}>
+                            <Star className={`mr-2 h-4 w-4 ${l.is_featured ? 'text-orange-400 fill-orange-400' : ''}`} />
+                            {l.is_featured ? 'Featured entfernen' : 'Als Featured markieren'}
                           </DropdownMenuItem>
                           {l.status === 'available' && (
                             <DropdownMenuItem onClick={() => handleStatusChange(l.id, 'reserved')}>
@@ -290,31 +410,91 @@ export default function ListingsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {/* Image Paste Zone */}
-            <div
-              ref={dropZoneRef}
-              className={`relative border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
-                imagePreview ? 'border-primary/50' : 'border-border hover:border-primary/30'
-              }`}
-            >
-              {imagePreview ? (
-                <div className="relative">
-                  <img src={imagePreview} alt="Preview" className="max-h-48 mx-auto rounded-lg object-contain" />
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-1 right-1 h-6 w-6 cursor-pointer"
-                    onClick={() => { setImagePreview(null); setImageBase64(null); }}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="py-6 space-y-2">
-                  <ClipboardPaste className="h-8 w-8 mx-auto text-muted-foreground" />
+            {/* Multi-Image Gallery */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="flex items-center gap-1.5">
+                  <ImagePlus className="h-3.5 w-3.5 text-muted-foreground" />
+                  Bilder ({images.length}/{MAX_IMAGES})
+                </Label>
+                {images.length < MAX_IMAGES && (
+                  <p className="text-[10px] text-muted-foreground">
+                    <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">Strg+V</kbd> zum Einfügen
+                  </p>
+                )}
+              </div>
+
+              {images.length === 0 ? (
+                <div
+                  ref={dropZoneRef}
+                  className="border-2 border-dashed rounded-lg p-6 text-center border-border hover:border-primary/30 transition-colors"
+                >
+                  <ClipboardPaste className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                   <p className="text-sm text-muted-foreground">
                     Screenshot machen & <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">Strg+V</kbd> drücken
                   </p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">Bis zu {MAX_IMAGES} Bilder pro Fahrzeug</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-4 gap-2">
+                    {images.map((img, idx) => (
+                      <div
+                        key={idx}
+                        draggable
+                        onDragStart={() => handleDragStart(idx)}
+                        onDragOver={(e) => handleDragOver(e, idx)}
+                        onDragEnd={handleDragEnd}
+                        className={`relative rounded-lg overflow-hidden border-2 transition-all cursor-grab active:cursor-grabbing ${
+                          img.isCover ? 'border-orange-400 ring-1 ring-orange-400/30' : 'border-border hover:border-primary/30'
+                        } ${dragIdx === idx ? 'opacity-50 scale-95' : ''}`}
+                      >
+                        <img src={img.preview} alt="" className="h-20 w-full object-cover" />
+
+                        {/* Cover badge */}
+                        {img.isCover && (
+                          <div className="absolute top-1 left-1 bg-orange-500 text-white text-[8px] px-1 py-0.5 rounded flex items-center gap-0.5">
+                            <Crown className="h-2 w-2" /> Cover
+                          </div>
+                        )}
+
+                        {/* Action buttons */}
+                        <div className="absolute top-1 right-1 flex gap-0.5">
+                          {!img.isCover && (
+                            <button
+                              onClick={() => handleSetCover(idx)}
+                              className="h-5 w-5 rounded bg-black/60 text-white flex items-center justify-center hover:bg-orange-500 transition-colors cursor-pointer"
+                              title="Als Cover setzen"
+                            >
+                              <Crown className="h-2.5 w-2.5" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleRemoveImage(idx)}
+                            className="h-5 w-5 rounded bg-black/60 text-white flex items-center justify-center hover:bg-destructive transition-colors cursor-pointer"
+                            title="Entfernen"
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        </div>
+
+                        {/* Drag handle */}
+                        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-black/40 rounded px-1">
+                          <GripVertical className="h-3 w-3 text-white/60" />
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Add more slot */}
+                    {images.length < MAX_IMAGES && (
+                      <div className="h-20 rounded-lg border-2 border-dashed border-border hover:border-primary/30 flex items-center justify-center transition-colors">
+                        <div className="text-center">
+                          <ClipboardPaste className="h-4 w-4 mx-auto text-muted-foreground/40" />
+                          <p className="text-[9px] text-muted-foreground/40 mt-0.5">Strg+V</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

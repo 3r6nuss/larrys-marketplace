@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 const LoginPage = lazy(() => import('@/pages/LoginPage'));
 const AuthCallback = lazy(() => import('@/pages/AuthCallback'));
+const CustomerHomePage = lazy(() => import('@/pages/CustomerHomePage'));
 const CatalogPage = lazy(() => import('@/pages/CatalogPage'));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const ProfilePage = lazy(() => import('@/pages/ProfilePage'));
@@ -45,7 +46,8 @@ function App() {
               <Route path="/auth/callback" element={<AuthCallback />} />
 
               <Route element={<DashboardLayout />}>
-                <Route path="/" element={<CatalogPage />} />
+                <Route path="/" element={<CustomerHomePage />} />
+                <Route path="/catalog" element={<CatalogPage />} />
                 <Route path="/profile" element={<ProtectedRoute minRole="kunde"><ProfilePage /></ProtectedRoute>} />
                 <Route path="/dashboard" element={<ProtectedRoute minRole="mitarbeiter"><DashboardPage /></ProtectedRoute>} />
                 <Route path="/dashboard/listings" element={<ProtectedRoute minRole="mitarbeiter"><ListingsPage /></ProtectedRoute>} />

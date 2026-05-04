@@ -67,18 +67,21 @@ export default function CalculatorPage() {
   const calcDiscounted = (base, pct) => Math.round(base * (1 - pct / 100));
 
   return (
-    <div className="space-y-6 pb-12">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="space-y-6 pb-12 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-border/40">
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <Calculator className="h-8 w-8 text-primary" /> Ankaufrechner
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Calculator className="h-6 w-6 text-primary" />
+            </div>
+            Ankaufrechner
           </h1>
           <p className="text-muted-foreground mt-1">
             Stelle Gruppenangebote zusammen und berechne Paketpreise.
           </p>
         </div>
         {selection.length > 0 && (
-          <Button variant="outline" size="sm" onClick={clearSelection} className="text-destructive hover:bg-destructive/10">
+          <Button variant="outline" size="sm" onClick={clearSelection} className="text-destructive hover:bg-destructive/10 cursor-pointer">
             <Trash2 className="h-4 w-4 mr-2" /> Liste leeren
           </Button>
         )}

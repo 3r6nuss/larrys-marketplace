@@ -11,23 +11,26 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter
 } from '@/components/ui/dialog';
-import { Car, Search, MessageSquare, Filter, LogIn } from 'lucide-react';
+import { Car, Search, MessageSquare, Filter, LogIn, Images } from 'lucide-react';
 import { toast } from 'sonner';
+import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
+import VehicleDetailModal from '@/components/VehicleDetailModal';
 
 /**
  * Public catalog page. Shows all available vehicles without prices.
- * Customers can click "Verkäufer kontaktieren" to create a ticket.
- * Unauthenticated users see a login confirmation dialog first.
+ * Click on a card opens the Pokémon-card detail modal.
  */
 export default function CatalogPage() {
   const { user, login } = useAuth();
   const navigate = useNavigate();
+  const { addViewed } = useRecentlyViewed();
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [loginPrompt, setLoginPrompt] = useState(null); // listing that was clicked
+  const [loginPrompt, setLoginPrompt] = useState(null);
+  const [detailId, setDetailId] = useState(null); // Pokémon-card modal
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -57,17 +60,23 @@ export default function CatalogPage() {
 
   useEffect(() => { fetchListings(); }, [fetchListings]);
 
-  const handleContact = (listing) => {
+  const handleContact = (e, listing) => {
+    e.stopPropagation(); // Don't open modal
+    addViewed(listing.id);
+
     if (!user) {
-      // Show confirmation modal instead of instantly redirecting
       setLoginPrompt(listing);
       return;
     }
     navigate(`/dashboard/tickets?listing=${listing.id}`);
   };
 
+  const handleCardClick = (listing) => {
+    addViewed(listing.id);
+    setDetailId(listing.id);
+  };
+
   const confirmLogin = () => {
-    // Store intended listing in sessionStorage so after login we can resume
     if (loginPrompt) {
       sessionStorage.setItem('pendingListing', loginPrompt.id);
     }
@@ -98,11 +107,11 @@ export default function CatalogPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col gap-2 pb-2 border-b border-border/40">
         <h1 className="text-3xl font-bold tracking-tight">Fahrzeug-Katalog</h1>
         <p className="text-muted-foreground">
-          Entdecke unsere verfügbaren Fahrzeuge. Kontaktiere einen Verkäufer für Preisinformationen.
+          Entdecke unsere verfügbaren Fahrzeuge. Klicke auf ein Fahrzeug für Details.
         </p>
       </div>
 
@@ -158,12 +167,19 @@ export default function CatalogPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredListings.map(listing => {
             const status = STATUS_BADGE[listing.status] || STATUS_BADGE.available;
+            const displayImage = listing.cover_image || listing.image_path;
+            const hasMultipleImages = (listing.image_count || 0) > 1;
+
             return (
-              <Card key={listing.id} className="overflow-hidden group hover:border-primary/40 transition-colors duration-300">
+              <Card
+                key={listing.id}
+                onClick={() => handleCardClick(listing)}
+                className="overflow-hidden group hover:border-primary/40 transition-all duration-300 cursor-pointer hover:shadow-lg hover:shadow-primary/5"
+              >
                 <div className="relative h-48 bg-muted overflow-hidden">
-                  {listing.image_path ? (
+                  {displayImage ? (
                     <img
-                      src={listing.image_path}
+                      src={displayImage}
                       alt={`${listing.brand} ${listing.model}`}
                       className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
@@ -178,10 +194,18 @@ export default function CatalogPage() {
                   >
                     {status.label}
                   </Badge>
+
+                  {/* Multi-image dot indicator */}
+                  {hasMultipleImages && (
+                    <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-black/50 px-2 py-0.5 rounded-full">
+                      <Images className="h-3 w-3 text-white/80" />
+                      <span className="text-[10px] text-white/80 font-medium">{listing.image_count}</span>
+                    </div>
+                  )}
                 </div>
                 <CardContent className="p-4 space-y-3">
                   <div>
-                    <h3 className="font-semibold text-lg leading-tight">
+                    <h3 className="font-semibold text-lg leading-tight group-hover:text-primary transition-colors">
                       {listing.brand} {listing.model}
                     </h3>
                     {listing.plate && (
@@ -202,7 +226,7 @@ export default function CatalogPage() {
                   </div>
                   {listing.status === 'available' && (
                     <Button
-                      onClick={() => handleContact(listing)}
+                      onClick={(e) => handleContact(e, listing)}
                       className="w-full gap-2 cursor-pointer"
                       variant="default"
                     >
@@ -216,6 +240,13 @@ export default function CatalogPage() {
           })}
         </div>
       )}
+
+      {/* ── Pokémon-Card Detail Modal ── */}
+      <VehicleDetailModal
+        listingId={detailId}
+        open={!!detailId}
+        onClose={() => setDetailId(null)}
+      />
 
       {/* ── Login Confirmation Modal ── */}
       <Dialog open={!!loginPrompt} onOpenChange={(open) => !open && setLoginPrompt(null)}>

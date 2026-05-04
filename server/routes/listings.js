@@ -23,6 +23,42 @@ async function saveBase64Image(b64) {
   return `/uploads/${filename}`;
 }
 
+/** GET /api/listings/featured — Public: returns featured listings */
+router.get('/featured', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT l.id, l.brand, l.model, l.plate, l.category, l.image_path, l.status, l.discount_pct,
+              u.display_name as seller_name, u.avatar_url as seller_avatar,
+              (SELECT li.image_path FROM listing_images li WHERE li.listing_id = l.id AND li.is_cover = 1 LIMIT 1) as cover_image
+       FROM listings l LEFT JOIN users u ON l.seller_id = u.id
+       WHERE l.is_featured = 1 AND l.status = 'available'
+       ORDER BY RANDOM() LIMIT 6`
+    );
+    res.json(result.rows.map(r => ({ ...r, cover_image: r.cover_image || r.image_path })));
+  } catch (err) {
+    console.error('Featured listings error:', err);
+    res.status(500).json({ error: 'Fehler.' });
+  }
+});
+
+/** GET /api/listings/newest — Public: returns newest listings */
+router.get('/newest', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT l.id, l.brand, l.model, l.plate, l.category, l.image_path, l.status, l.discount_pct,
+              u.display_name as seller_name, u.avatar_url as seller_avatar,
+              (SELECT li.image_path FROM listing_images li WHERE li.listing_id = l.id AND li.is_cover = 1 LIMIT 1) as cover_image
+       FROM listings l LEFT JOIN users u ON l.seller_id = u.id
+       WHERE l.status = 'available'
+       ORDER BY l.listed_at DESC LIMIT 6`
+    );
+    res.json(result.rows.map(r => ({ ...r, cover_image: r.cover_image || r.image_path })));
+  } catch (err) {
+    console.error('Newest listings error:', err);
+    res.status(500).json({ error: 'Fehler.' });
+  }
+});
+
 /** GET /api/listings */
 router.get('/', optionalAuth, async (req, res) => {
   const { category, q, seller_id, status = 'available' } = req.query;
@@ -41,9 +77,32 @@ router.get('/', optionalAuth, async (req, res) => {
   try {
     const result = await pool.query(sql, params);
     const isMitarbeiter = req.user && ['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter'].includes(req.user.role);
+
+    // Fetch image counts and cover images for all listings
+    const listingIds = result.rows.map(r => r.id);
+    let imageMap = {};
+    if (listingIds.length > 0) {
+      const imgResult = await pool.query(
+        `SELECT listing_id, image_path, is_cover FROM listing_images WHERE listing_id IN (${listingIds.map(() => '?').join(',')}) ORDER BY sort_order ASC`,
+        listingIds
+      );
+      for (const img of imgResult.rows) {
+        if (!imageMap[img.listing_id]) imageMap[img.listing_id] = { cover: null, count: 0 };
+        imageMap[img.listing_id].count++;
+        if (img.is_cover) imageMap[img.listing_id].cover = img.image_path;
+        if (!imageMap[img.listing_id].cover) imageMap[img.listing_id].cover = img.image_path;
+      }
+    }
+
     res.json(result.rows.map(l => {
-      if (!isMitarbeiter) { const { custom_price, notes, sold_price, ...safe } = l; return safe; }
-      return l;
+      const imgs = imageMap[l.id];
+      const enriched = {
+        ...l,
+        cover_image: imgs?.cover || l.image_path || null,
+        image_count: imgs?.count || (l.image_path ? 1 : 0),
+      };
+      if (!isMitarbeiter) { const { custom_price, notes, sold_price, ...safe } = enriched; return safe; }
+      return enriched;
     }));
   } catch (err) {
     console.error('Get listings error:', err);
@@ -55,7 +114,7 @@ router.get('/', optionalAuth, async (req, res) => {
 router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT l.*, u.display_name as seller_name, u.avatar_url as seller_avatar FROM listings l LEFT JOIN users u ON l.seller_id = u.id WHERE l.id = ?',
+      'SELECT l.*, u.display_name as seller_name, u.avatar_url as seller_avatar, u.role as seller_role FROM listings l LEFT JOIN users u ON l.seller_id = u.id WHERE l.id = ?',
       [req.params.id]
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'Nicht gefunden.' });
@@ -65,7 +124,22 @@ router.get('/:id', optionalAuth, async (req, res) => {
     const listing = result.rows[0];
     const isMitarbeiter = req.user && ['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter'].includes(req.user.role);
 
-    if (!isMitarbeiter) { const { custom_price, notes, sold_price, ...safe } = listing; return res.json(safe); }
+    // Fetch all images
+    const imagesResult = await pool.query(
+      'SELECT id, image_path, sort_order, is_cover FROM listing_images WHERE listing_id = ? ORDER BY sort_order ASC',
+      [req.params.id]
+    );
+    listing.images = imagesResult.rows;
+
+    // Fallback: if no images in new table but image_path exists
+    if (listing.images.length === 0 && listing.image_path) {
+      listing.images = [{ id: 0, image_path: listing.image_path, sort_order: 0, is_cover: 1 }];
+    }
+
+    if (!isMitarbeiter) {
+      const { custom_price, notes, sold_price, view_count, ...safe } = listing;
+      return res.json(safe);
+    }
 
     if (listing.catalog_id) {
       const catRes = await pool.query('SELECT * FROM vehicle_catalog WHERE id = ?', [listing.catalog_id]);
@@ -79,7 +153,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
 
 /** POST /api/listings */
 router.post('/', requireAuth, requireRole('mitarbeiter'), upload.single('image'), async (req, res) => {
-  const { catalog_id, brand, model, plate, category, custom_price, discount_pct, notes, image_base64 } = req.body;
+  const { catalog_id, brand, model, plate, category, custom_price, discount_pct, notes, image_base64, images_base64 } = req.body;
   if (!brand || !model) return res.status(400).json({ error: 'Marke und Modell erforderlich.' });
 
   let imagePath = null;
@@ -96,7 +170,30 @@ router.post('/', requireAuth, requireRole('mitarbeiter'), upload.single('image')
       'SELECT * FROM listings WHERE seller_id = ? AND brand = ? AND model = ? ORDER BY listed_at DESC LIMIT 1',
       [req.user.id, brand, model]
     );
-    await logAction(req.user.id, 'listing_created', 'listing', created.rows[0].id, { brand, model, plate }, req.ip);
+    const listingId = created.rows[0].id;
+
+    // Save images to listing_images table
+    const allImages = [];
+    if (imagePath) allImages.push(imagePath);
+
+    // Parse multi-image array
+    let extraImages = [];
+    if (images_base64) {
+      try { extraImages = JSON.parse(images_base64); } catch { extraImages = []; }
+    }
+    for (const b64 of extraImages) {
+      const p = await saveBase64Image(b64).catch(() => null);
+      if (p) allImages.push(p);
+    }
+
+    for (let i = 0; i < allImages.length; i++) {
+      await pool.query(
+        'INSERT INTO listing_images (listing_id, image_path, sort_order, is_cover) VALUES (?, ?, ?, ?)',
+        [listingId, allImages[i], i, i === 0 ? 1 : 0]
+      );
+    }
+
+    await logAction(req.user.id, 'listing_created', 'listing', listingId, { brand, model, plate }, req.ip);
     res.status(201).json(created.rows[0]);
   } catch (err) {
     console.error('Create listing error:', err);
@@ -132,6 +229,7 @@ router.put('/:id', requireAuth, requireRole('mitarbeiter'), upload.single('image
   if (discount_pct !== undefined) add('discount_pct', parseFloat(discount_pct));
   if (notes !== undefined) add('notes', notes);
   if (imagePath !== undefined) add('image_path', imagePath);
+  if (req.body.is_featured !== undefined) add('is_featured', req.body.is_featured ? 1 : 0);
   if (sets.length === 0) return res.status(400).json({ error: 'Keine Änderungen.' });
 
   try {
@@ -186,6 +284,179 @@ router.delete('/:id', requireAuth, requireRole('mitarbeiter'), async (req, res) 
     await logAction(req.user.id, 'listing_deleted', 'listing', parseInt(req.params.id), { brand: listing.rows[0].brand, model: listing.rows[0].model }, req.ip);
     res.json({ success: true });
   } catch (err) {
+    res.status(500).json({ error: 'Fehler.' });
+  }
+});
+
+/** PUT /api/listings/:id/feature — Toggle featured status */
+router.put('/:id/feature', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
+  try {
+    const listing = await pool.query('SELECT * FROM listings WHERE id = ?', [req.params.id]);
+    if (!listing.rows[0]) return res.status(404).json({ error: 'Nicht gefunden.' });
+
+    const isOwner = listing.rows[0].seller_id === req.user.id;
+    const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Keine Berechtigung.' });
+
+    const newValue = listing.rows[0].is_featured ? 0 : 1;
+
+    // Check max 2 featured per seller
+    if (newValue === 1) {
+      const countRes = await pool.query(
+        'SELECT COUNT(*) as count FROM listings WHERE seller_id = ? AND is_featured = 1',
+        [listing.rows[0].seller_id]
+      );
+      if (parseInt(countRes.rows[0].count) >= 2) {
+        return res.status(400).json({ error: 'Maximal 2 Fahrzeuge k\u00f6nnen als Featured markiert werden.' });
+      }
+    }
+
+    await pool.query('UPDATE listings SET is_featured = ? WHERE id = ?', [newValue, req.params.id]);
+    await logAction(req.user.id, 'listing_updated', 'listing', parseInt(req.params.id), { is_featured: newValue }, req.ip);
+    res.json({ success: true, is_featured: newValue });
+  } catch (err) {
+    console.error('Feature toggle error:', err);
+    res.status(500).json({ error: 'Fehler.' });
+  }
+});
+
+// ─── IMAGE MANAGEMENT ────────────────────────────────────────────────────
+
+/** POST /api/listings/:id/images — Upload image(s) to a listing */
+router.post('/:id/images', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
+  try {
+    const listing = await pool.query('SELECT * FROM listings WHERE id = ?', [req.params.id]);
+    if (!listing.rows[0]) return res.status(404).json({ error: 'Nicht gefunden.' });
+
+    const isOwner = listing.rows[0].seller_id === req.user.id;
+    const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Keine Berechtigung.' });
+
+    // Check max 8 images
+    const countRes = await pool.query('SELECT COUNT(*) as count FROM listing_images WHERE listing_id = ?', [req.params.id]);
+    const currentCount = parseInt(countRes.rows[0].count);
+
+    const { image_base64 } = req.body;
+    if (!image_base64) return res.status(400).json({ error: 'Kein Bild.' });
+
+    if (currentCount >= 8) {
+      return res.status(400).json({ error: 'Maximal 8 Bilder pro Fahrzeug.' });
+    }
+
+    const imagePath = await saveBase64Image(image_base64).catch(() => null);
+    if (!imagePath) return res.status(400).json({ error: 'Bild konnte nicht gespeichert werden.' });
+
+    const isCover = currentCount === 0 ? 1 : 0;
+    await pool.query(
+      'INSERT INTO listing_images (listing_id, image_path, sort_order, is_cover) VALUES (?, ?, ?, ?)',
+      [req.params.id, imagePath, currentCount, isCover]
+    );
+
+    // Also update legacy image_path if this is the cover
+    if (isCover) {
+      await pool.query('UPDATE listings SET image_path = ? WHERE id = ?', [imagePath, req.params.id]);
+    }
+
+    const images = await pool.query('SELECT * FROM listing_images WHERE listing_id = ? ORDER BY sort_order', [req.params.id]);
+    res.json(images.rows);
+  } catch (err) {
+    console.error('Image upload error:', err);
+    res.status(500).json({ error: 'Fehler.' });
+  }
+});
+
+/** DELETE /api/listings/:id/images/:imageId — Delete single image */
+router.delete('/:id/images/:imageId', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
+  try {
+    const listing = await pool.query('SELECT * FROM listings WHERE id = ?', [req.params.id]);
+    if (!listing.rows[0]) return res.status(404).json({ error: 'Nicht gefunden.' });
+
+    const isOwner = listing.rows[0].seller_id === req.user.id;
+    const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Keine Berechtigung.' });
+
+    const image = await pool.query('SELECT * FROM listing_images WHERE id = ? AND listing_id = ?', [req.params.imageId, req.params.id]);
+    if (!image.rows[0]) return res.status(404).json({ error: 'Bild nicht gefunden.' });
+
+    // Delete physical file
+    try {
+      const { unlink } = await import('fs/promises');
+      const filePath = path.join(process.cwd(), image.rows[0].image_path);
+      await unlink(filePath).catch(() => {});
+    } catch {}
+
+    await pool.query('DELETE FROM listing_images WHERE id = ?', [req.params.imageId]);
+
+    // If deleted image was cover, make first remaining image the cover
+    if (image.rows[0].is_cover) {
+      const remaining = await pool.query('SELECT id FROM listing_images WHERE listing_id = ? ORDER BY sort_order LIMIT 1', [req.params.id]);
+      if (remaining.rows[0]) {
+        await pool.query('UPDATE listing_images SET is_cover = 1 WHERE id = ?', [remaining.rows[0].id]);
+        const newCover = await pool.query('SELECT image_path FROM listing_images WHERE id = ?', [remaining.rows[0].id]);
+        await pool.query('UPDATE listings SET image_path = ? WHERE id = ?', [newCover.rows[0].image_path, req.params.id]);
+      } else {
+        await pool.query('UPDATE listings SET image_path = NULL WHERE id = ?', [req.params.id]);
+      }
+    }
+
+    const images = await pool.query('SELECT * FROM listing_images WHERE listing_id = ? ORDER BY sort_order', [req.params.id]);
+    res.json(images.rows);
+  } catch (err) {
+    console.error('Image delete error:', err);
+    res.status(500).json({ error: 'Fehler.' });
+  }
+});
+
+/** PUT /api/listings/:id/images/:imageId/cover — Set as cover image */
+router.put('/:id/images/:imageId/cover', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
+  try {
+    const listing = await pool.query('SELECT * FROM listings WHERE id = ?', [req.params.id]);
+    if (!listing.rows[0]) return res.status(404).json({ error: 'Nicht gefunden.' });
+
+    const isOwner = listing.rows[0].seller_id === req.user.id;
+    const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Keine Berechtigung.' });
+
+    // Unset all covers for this listing
+    await pool.query('UPDATE listing_images SET is_cover = 0 WHERE listing_id = ?', [req.params.id]);
+    // Set new cover
+    await pool.query('UPDATE listing_images SET is_cover = 1 WHERE id = ? AND listing_id = ?', [req.params.imageId, req.params.id]);
+
+    // Update legacy image_path
+    const coverImg = await pool.query('SELECT image_path FROM listing_images WHERE id = ?', [req.params.imageId]);
+    if (coverImg.rows[0]) {
+      await pool.query('UPDATE listings SET image_path = ? WHERE id = ?', [coverImg.rows[0].image_path, req.params.id]);
+    }
+
+    const images = await pool.query('SELECT * FROM listing_images WHERE listing_id = ? ORDER BY sort_order', [req.params.id]);
+    res.json(images.rows);
+  } catch (err) {
+    console.error('Cover set error:', err);
+    res.status(500).json({ error: 'Fehler.' });
+  }
+});
+
+/** PUT /api/listings/:id/images/reorder — Reorder images */
+router.put('/:id/images/reorder', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
+  try {
+    const listing = await pool.query('SELECT * FROM listings WHERE id = ?', [req.params.id]);
+    if (!listing.rows[0]) return res.status(404).json({ error: 'Nicht gefunden.' });
+
+    const isOwner = listing.rows[0].seller_id === req.user.id;
+    const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Keine Berechtigung.' });
+
+    const { order } = req.body; // array of image IDs in new order
+    if (!Array.isArray(order)) return res.status(400).json({ error: 'Ung\u00fcltiges Format.' });
+
+    for (let i = 0; i < order.length; i++) {
+      await pool.query('UPDATE listing_images SET sort_order = ? WHERE id = ? AND listing_id = ?', [i, order[i], req.params.id]);
+    }
+
+    const images = await pool.query('SELECT * FROM listing_images WHERE listing_id = ? ORDER BY sort_order', [req.params.id]);
+    res.json(images.rows);
+  } catch (err) {
+    console.error('Reorder error:', err);
     res.status(500).json({ error: 'Fehler.' });
   }
 });

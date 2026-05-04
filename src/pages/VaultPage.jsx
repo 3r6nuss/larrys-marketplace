@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Vault, DollarSign, CheckCircle2, Clock, Undo2 } from 'lucide-react';
+import { Vault, DollarSign, CheckCircle2, Clock, Undo2, TrendingUp, ArrowRight } from 'lucide-react';
 
 export default function VaultPage() {
   const { user, hasRole } = useAuth();
@@ -69,76 +69,105 @@ export default function VaultPage() {
   const totalPaidOut = paidOut.reduce((s, e) => s + (e.amount || 0), 0);
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto">
+      <div className="pb-2 border-b border-border/40">
         <h1 className="text-3xl font-bold tracking-tight">Tresor</h1>
         <p className="text-muted-foreground mt-1">Provisionen aus Zwischenverkäufen verwalten.</p>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Ausstehend</CardTitle>
-            <Clock className="h-5 w-5 text-warning" />
+      {/* Bento Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="relative overflow-hidden group bg-card/60 backdrop-blur-xl border-warning/20 hover:border-warning/40 hover:shadow-lg hover:shadow-warning/5 transition-all duration-300">
+          <div className="absolute top-1/2 -translate-y-1/2 right-3 opacity-[0.04] group-hover:opacity-[0.08] transition-opacity">
+            <Clock className="h-24 w-24" />
+          </div>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-warning transition-colors">Ausstehend</CardTitle>
+            <div className="p-2 bg-warning/10 rounded-md">
+              <Clock className="h-4 w-4 text-warning" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-warning">${totalPending.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">{pending.length} Einträge</p>
+            <div className="text-3xl font-black text-warning">
+              {loading ? <Skeleton className="h-9 w-28" /> : `$ ${totalPending.toLocaleString()}`}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 font-medium">{pending.length} Einträge</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Ausgezahlt</CardTitle>
-            <CheckCircle2 className="h-5 w-5 text-success" />
+
+        <Card className="relative overflow-hidden group bg-card/60 backdrop-blur-xl border-success/20 hover:border-success/40 hover:shadow-lg hover:shadow-success/5 transition-all duration-300">
+          <div className="absolute top-1/2 -translate-y-1/2 right-3 opacity-[0.04] group-hover:opacity-[0.08] transition-opacity">
+            <CheckCircle2 className="h-24 w-24" />
+          </div>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-success transition-colors">Ausgezahlt</CardTitle>
+            <div className="p-2 bg-success/10 rounded-md">
+              <CheckCircle2 className="h-4 w-4 text-success" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-success">${totalPaidOut.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">{paidOut.length} Einträge</p>
+            <div className="text-3xl font-black text-success">
+              {loading ? <Skeleton className="h-9 w-28" /> : `$ ${totalPaidOut.toLocaleString()}`}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 font-medium">{paidOut.length} Einträge</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Gesamt</CardTitle>
-            <DollarSign className="h-5 w-5 text-primary" />
+
+        <Card className="relative overflow-hidden group bg-card/60 backdrop-blur-xl border-primary/20 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
+          <div className="absolute top-1/2 -translate-y-1/2 right-3 opacity-[0.04] group-hover:opacity-[0.08] transition-opacity">
+            <TrendingUp className="h-24 w-24" />
+          </div>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-primary transition-colors">Gesamt</CardTitle>
+            <div className="p-2 bg-primary/10 rounded-md">
+              <DollarSign className="h-4 w-4 text-primary" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${(totalPending + totalPaidOut).toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">{entries.length} Einträge total</p>
+            <div className="text-3xl font-black">
+              {loading ? <Skeleton className="h-9 w-28" /> : `$ ${(totalPending + totalPaidOut).toLocaleString()}`}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 font-medium">{entries.length} Einträge total</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Tabs */}
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="pending" className="cursor-pointer">
-            Ausstehend <Badge variant="secondary" className="ml-2 text-xs">{pending.length}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="paid_out" className="cursor-pointer">
-            Ausgezahlt <Badge variant="secondary" className="ml-2 text-xs">{paidOut.length}</Badge>
-          </TabsTrigger>
-        </TabsList>
+      {/* Table in Card */}
+      <Card className="bg-card/40 backdrop-blur-sm border-border/50 overflow-hidden">
+        <Tabs value={tab} onValueChange={setTab}>
+          <CardHeader className="pb-0">
+            <TabsList>
+              <TabsTrigger value="pending" className="cursor-pointer">
+                Ausstehend <Badge variant="secondary" className="ml-2 text-xs">{pending.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="paid_out" className="cursor-pointer">
+                Ausgezahlt <Badge variant="secondary" className="ml-2 text-xs">{paidOut.length}</Badge>
+              </TabsTrigger>
+            </TabsList>
+          </CardHeader>
 
-        <TabsContent value="pending">
-          <VaultTable
-            entries={pending}
-            loading={loading}
-            showPayout={hasRole('inhaber')}
-            onPayout={handlePayout}
-            isAdmin={hasRole('inhaber')}
-          />
-        </TabsContent>
-        <TabsContent value="paid_out">
-          <VaultTable
-            entries={paidOut}
-            loading={loading}
-            showRevert={hasRole('superadmin')}
-            onRevert={handleRevert}
-            isAdmin={hasRole('inhaber')}
-          />
-        </TabsContent>
-      </Tabs>
+          <CardContent className="pt-4">
+            <TabsContent value="pending" className="mt-0">
+              <VaultTable
+                entries={pending}
+                loading={loading}
+                showPayout={hasRole('inhaber')}
+                onPayout={handlePayout}
+                isAdmin={hasRole('inhaber')}
+              />
+            </TabsContent>
+            <TabsContent value="paid_out" className="mt-0">
+              <VaultTable
+                entries={paidOut}
+                loading={loading}
+                showRevert={hasRole('superadmin')}
+                onRevert={handleRevert}
+                isAdmin={hasRole('inhaber')}
+              />
+            </TabsContent>
+          </CardContent>
+        </Tabs>
+      </Card>
     </div>
   );
 }
@@ -150,10 +179,10 @@ function VaultTable({ entries, loading, showPayout, showRevert, onPayout, onReve
 
   if (entries.length === 0) {
     return (
-      <Card className="p-8 text-center">
-        <Vault className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-        <p className="text-muted-foreground">Keine Einträge vorhanden.</p>
-      </Card>
+      <div className="py-12 text-center">
+        <Vault className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-30" />
+        <p className="text-muted-foreground text-sm">Keine Einträge vorhanden.</p>
+      </div>
     );
   }
 

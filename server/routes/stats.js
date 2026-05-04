@@ -1,8 +1,60 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { requireAuth, requireRole } from '../middleware/auth.js';
+import { requireAuth, optionalAuth, requireRole } from '../middleware/auth.js';
 
 const router = Router();
+
+/**
+ * GET /api/stats/public
+ * Public marketplace stats (no auth required) — used in customer bento box.
+ */
+router.get('/public', async (req, res) => {
+  try {
+    const q = (sql) => pool.query(sql).then(r => r.rows[0]);
+
+    const available = await q(`SELECT COUNT(*) as count FROM listings WHERE status = 'available'`);
+    const categories = await q(`SELECT COUNT(DISTINCT category) as count FROM listings WHERE status = 'available' AND category IS NOT NULL`);
+    const todayListed = await q(`SELECT COUNT(*) as count FROM listings WHERE date(listed_at) = date('now')`);
+    const views = await q(`SELECT COALESCE(SUM(view_count), 0) as total FROM listings`);
+
+    res.json({
+      total_available: parseInt(available.count),
+      total_categories: parseInt(categories.count),
+      today_listed: parseInt(todayListed.count),
+      total_views: parseInt(views.total),
+    });
+  } catch (err) {
+    console.error('Public stats error:', err);
+    res.status(500).json({ error: 'Fehler.' });
+  }
+});
+
+/**
+ * GET /api/stats/customer
+ * Authenticated customer stats — ticket counts for bento box.
+ */
+router.get('/customer', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const openTickets = await pool.query(
+      `SELECT COUNT(*) as count FROM tickets WHERE customer_id = ? AND status IN ('open', 'in_progress')`,
+      [userId]
+    );
+    const totalTickets = await pool.query(
+      `SELECT COUNT(*) as count FROM tickets WHERE customer_id = ?`,
+      [userId]
+    );
+
+    res.json({
+      my_open_tickets: parseInt(openTickets.rows[0].count),
+      my_total_tickets: parseInt(totalTickets.rows[0].count),
+    });
+  } catch (err) {
+    console.error('Customer stats error:', err);
+    res.status(500).json({ error: 'Fehler.' });
+  }
+});
 
 /**
  * GET /api/stats

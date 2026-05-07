@@ -45,6 +45,7 @@ router.get('/dev-login', async (req, res) => {
   }
 
   const role = req.query.role || 'superadmin';
+  const name = req.query.name || null; // optional: e.g. "1", "2" for multiple accounts per role
   const validRoles = ['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter', 'kunde'];
   const selectedRole = validRoles.includes(role) ? role : 'superadmin';
 
@@ -57,13 +58,15 @@ router.get('/dev-login', async (req, res) => {
   };
 
   try {
-    const discordId = `dev_${selectedRole}`;
-    const displayName = ROLE_NAMES[selectedRole];
+    const suffix = name ? `_${name}` : '';
+    const discordId = `dev_${selectedRole}${suffix}`;
+    const displayName = name ? `${ROLE_NAMES[selectedRole]} ${name}` : ROLE_NAMES[selectedRole];
+    const username = `dev_${selectedRole}${suffix}`;
 
     // Upsert dev user — SQLite-compatible approach
     await db.query(
       `INSERT OR IGNORE INTO users (discord_id, username, display_name, role) VALUES (?, ?, ?, ?)`,
-      [discordId, `dev_${selectedRole}`, displayName, selectedRole]
+      [discordId, username, displayName, selectedRole]
     );
     await db.query(
       `UPDATE users SET display_name = ?, role = ?, last_login = datetime('now') WHERE discord_id = ?`,
@@ -77,7 +80,7 @@ router.get('/dev-login', async (req, res) => {
     const user = result.rows[0];
     req.session.userId = user.id;
 
-    await logAction(user.id, 'dev_login', 'user', user.id, { role: selectedRole }, req.ip);
+    await logAction(user.id, 'dev_login', 'user', user.id, { role: selectedRole, name }, req.ip);
 
     console.log(`🔓 Dev login: ${displayName} (${selectedRole})`);
     res.redirect(`${FRONTEND_URL}/auth/callback`);

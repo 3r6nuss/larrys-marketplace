@@ -1,0 +1,56 @@
+import { lazy, Suspense } from 'react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const ListingsPage = lazy(() => import('@/pages/ListingsPage'));
+const TicketsPage = lazy(() => import('@/pages/TicketsPage'));
+const CalculatorPage = lazy(() => import('@/pages/CalculatorPage'));
+const VaultPage = lazy(() => import('@/pages/VaultPage'));
+const StatsPage = lazy(() => import('@/pages/StatsPage'));
+const UsersPage = lazy(() => import('@/pages/UsersPage'));
+const AuditLogsPage = lazy(() => import('@/pages/AuditLogsPage'));
+const CatalogAdminPage = lazy(() => import('@/pages/CatalogAdminPage'));
+const CatalogPage = lazy(() => import('@/pages/CatalogPage'));
+const ProfilePage = lazy(() => import('@/pages/ProfilePage'));
+
+const MODAL_MAP = {
+ listings: ListingsPage,
+ tickets: TicketsPage,
+ calculator: CalculatorPage,
+ vault: VaultPage,
+ stats: StatsPage,
+ users: UsersPage,
+ logs: AuditLogsPage,
+ catalog_admin: CatalogAdminPage,
+ catalog: CatalogPage,
+ profile: ProfilePage,
+};
+
+function ModalFallback() {
+ return (
+ <div className="space-y-4 p-4">
+ <Skeleton className="h-8 w-48" />
+ <Skeleton className="h-4 w-80" />
+ <div className="grid grid-cols-2 gap-3">
+ <Skeleton className="h-32 w-full" />
+ <Skeleton className="h-32 w-full" />
+ </div>
+ </div>
+ );
+}
+
+export default function PopupShell({ activeModal, onClose }) {
+ const ModalComponent = activeModal ? MODAL_MAP[activeModal] : null;
+
+ return (
+ <Dialog open={!!activeModal} onOpenChange={(open) => !open && onClose()}>
+ <DialogContent className="max-w-[95vw] sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[1200px] w-full h-[90vh] overflow-y-auto bg-background/95 border-border/50">
+ <div className="p-2 h-full">
+ <Suspense fallback={<ModalFallback />}>
+ {ModalComponent && <ModalComponent isModal />}
+ </Suspense>
+ </div>
+ </DialogContent>
+ </Dialog>
+ );
+}

@@ -154,6 +154,7 @@ export default function VaultPage() {
  showPayout={hasRole('inhaber')}
  onPayout={handlePayout}
  isAdmin={hasRole('inhaber')}
+ user={user}
  />
  </TabsContent>
  <TabsContent value="paid_out" className="mt-0">
@@ -163,6 +164,7 @@ export default function VaultPage() {
  showRevert={hasRole('superadmin')}
  onRevert={handleRevert}
  isAdmin={hasRole('inhaber')}
+ user={user}
  />
  </TabsContent>
  </CardContent>
@@ -172,7 +174,7 @@ export default function VaultPage() {
  );
 }
 
-function VaultTable({ entries, loading, showPayout, showRevert, onPayout, onRevert, isAdmin }) {
+function VaultTable({ entries, loading, showPayout, showRevert, onPayout, onRevert, isAdmin, user }) {
  if (loading) {
  return <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>;
  }
@@ -196,11 +198,13 @@ function VaultTable({ entries, loading, showPayout, showRevert, onPayout, onReve
  <TableHead>Verkauft von</TableHead>
  <TableHead className="text-right">Betrag</TableHead>
  <TableHead>Datum</TableHead>
- {(showPayout || showRevert) && <TableHead className="w-[120px]"></TableHead>}
+ {(showPayout || showRevert || entries.some(e => e.owner_id === user?.id)) && <TableHead className="w-[120px]"></TableHead>}
  </TableRow>
  </TableHeader>
  <TableBody>
- {entries.map(e => (
+ {entries.map(e => {
+ const canPayout = showPayout || e.owner_id === user?.id;
+ return (
  <TableRow key={e.id}>
  <TableCell className="font-medium">
  {e.brand ? `${e.brand} ${e.model}` : `Listing #${e.listing_id}`}
@@ -222,14 +226,14 @@ function VaultTable({ entries, loading, showPayout, showRevert, onPayout, onReve
  <TableCell className="text-sm text-muted-foreground">
  {new Date(e.created_at).toLocaleDateString('de-DE')}
  </TableCell>
- {showPayout && (
+ {canPayout && e.status === 'pending' && (
  <TableCell>
  <Button size="sm" className="gap-1 h-7 text-xs cursor-pointer" onClick={() => onPayout(e.id)}>
  <CheckCircle2 className="h-3 w-3" /> Auszahlen
  </Button>
  </TableCell>
  )}
- {showRevert && (
+ {showRevert && e.status === 'paid_out' && (
  <TableCell>
  <Button size="sm" variant="outline" className="gap-1 h-7 text-xs cursor-pointer" onClick={() => onRevert(e.id)}>
  <Undo2 className="h-3 w-3" /> Rückgängig
@@ -237,7 +241,8 @@ function VaultTable({ entries, loading, showPayout, showRevert, onPayout, onReve
  </TableCell>
  )}
  </TableRow>
- ))}
+ );
+ })}
  </TableBody>
  </Table>
  </div>

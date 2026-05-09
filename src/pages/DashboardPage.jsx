@@ -156,7 +156,7 @@ export default function DashboardPage() {
  className="col-span-1 bg-card/40 border-border/50 hover:border-success/40 transition-all hover:shadow-lg flex flex-col justify-between group cursor-pointer"
  >
  <CardHeader className="pb-3 flex flex-row items-center justify-between">
- <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-success transition-colors">Mein Tresor</CardTitle>
+ <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-success transition-colors">Ausstehende Provision</CardTitle>
  <div className="p-2 bg-success/10 rounded-md">
  <Wallet className="h-4 w-4 text-success" />
  </div>
@@ -166,7 +166,7 @@ export default function DashboardPage() {
  {loading ? <Skeleton className="h-12 w-24" /> : `$ ${(stats?.vault_balance ?? 0).toLocaleString('de-DE')}`}
  </div>
  <div className="text-sm text-muted-foreground mt-3 font-medium flex items-center gap-1.5 group-hover:text-success transition-colors">
- Guthaben ansehen <ArrowRight className="h-3 w-3" />
+ Jetzt auszahlen <ArrowRight className="h-3 w-3" />
  </div>
  </CardContent>
  </Card>

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireRole, logAction, checkRateLimit } from '../middleware/auth.js';
+import notificationEvents from '../events.js';
 
 const router = Router();
 
@@ -55,6 +56,10 @@ router.post('/', requireAuth, async (req, res) => {
     }
 
     await logAction(req.user.id, 'ticket_created', 'ticket', newTicket.id, { listing_id }, req.ip);
+    
+    // Notify staff
+    notificationEvents.emit('update');
+    
     res.status(201).json(newTicket);
   } catch (err) {
     console.error('Create ticket error:', err);
@@ -253,6 +258,10 @@ router.put('/:id/status', requireAuth, async (req, res) => {
     await logAction(req.user.id, 'ticket_status_changed', 'ticket', parseInt(req.params.id), {
       old_status: ticket.status, new_status: status,
     }, req.ip);
+
+    // Notify staff
+    notificationEvents.emit('update');
+
     res.json({ success: true, status }); // Return final status
   } catch (err) {
     console.error('Update ticket status error:', err);

@@ -347,6 +347,16 @@ export async function migrate() {
       )
     `);
 
+    // Performance Indexes for GTA RP Tablet (CEF) optimization
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_listings_seller ON listings(seller_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_listings_featured ON listings(is_featured)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_tickets_customer ON tickets(customer_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_tickets_assigned ON tickets(assigned_to)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_listing_images_listing ON listing_images(listing_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_vault_owner ON vault_entries(owner_id)`);
+
     if (client.release) client.release();
     console.log('✅ Database migrations complete');
   } catch (err) {

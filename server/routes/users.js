@@ -16,6 +16,18 @@ router.get('/', requireAuth, requireRole('inhaber'), async (req, res) => {
     res.status(500).json({ error: 'Fehler.' });
   }
 });
+/** GET /api/users/staff */
+router.get('/staff', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, username, display_name, avatar_url, role FROM users WHERE role IN ('mitarbeiter', 'inhaber', 'stv_admin', 'superadmin') ORDER BY display_name ASC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Get staff error:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Mitarbeiter.' });
+  }
+});
 
 /** PUT /api/users/:id/role */
 router.put('/:id/role', requireAuth, requireRole('stv_admin'), async (req, res) => {

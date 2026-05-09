@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, optionalAuth, requireRole } from '../middleware/auth.js';
+import notificationEvents from '../events.js';
 
 const router = Router();
 
@@ -111,6 +112,58 @@ router.get('/', requireAuth, requireRole('inhaber'), async (req, res) => {
 });
 
 /**
+ * GET /api/stats/notifications
+ * Ultra-fast endpoint for polling unread/open tickets.
+ */
+router.get('/notifications', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
+    
+    const result = await pool.query(
+      isAdmin 
+        ? `SELECT COUNT(*) as count FROM tickets WHERE status IN ('open','in_progress')`
+        : `SELECT COUNT(*) as count FROM tickets WHERE assigned_to = ? AND status IN ('open','in_progress')`,
+      isAdmin ? [] : [userId]
+    );
+    
+    res.json({ open_tickets: parseInt(result.rows[0].count) });
+  } catch (err) {
+    res.status(500).json({ error: 'Fehler.' });
+  }
+});
+
+/**
+ * GET /api/stats/notifications/stream
+ * SSE endpoint for real-time notification updates.
+ */
+router.get('/notifications/stream', requireAuth, requireRole('mitarbeiter'), (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const onUpdate = () => {
+    res.write('data: update\n\n');
+  };
+
+  notificationEvents.on('update', onUpdate);
+
+  // Send initial ping to keep connection alive
+  res.write('data: connected\n\n');
+
+  const keepAlive = setInterval(() => {
+    res.write(': keep-alive\n\n');
+  }, 30000);
+
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    notificationEvents.off('update', onUpdate);
+    res.end();
+  });
+});
+
+/**
  * GET /api/stats/dashboard
  * Personal dashboard stats for the current user (mitarbeiter+).
  */
@@ -121,59 +174,55 @@ router.get('/dashboard', requireAuth, requireRole('mitarbeiter'), async (req, re
 
     const q = (sql, params = []) => pool.query(sql, params).then(r => r.rows[0]);
 
-    const listings = await q(isAdmin
-      ? `SELECT COUNT(*) as count FROM listings WHERE status = 'available'`
-      : `SELECT COUNT(*) as count FROM listings WHERE seller_id = ? AND status = 'available'`,
-      isAdmin ? [] : [userId]);
-
-    const tickets = await q(isAdmin
-      ? `SELECT COUNT(*) as count FROM tickets WHERE status IN ('open','in_progress')`
-      : `SELECT COUNT(*) as count FROM tickets WHERE assigned_to = ? AND status IN ('open','in_progress')`,
-      isAdmin ? [] : [userId]);
-
-    const sales = await q(isAdmin
-      ? `SELECT COUNT(*) as count FROM listings WHERE status = 'sold' AND sold_at >= date('now','start of month')`
-      : `SELECT COUNT(*) as count FROM listings WHERE sold_by = ? AND status = 'sold' AND sold_at >= date('now','start of month')`,
-      isAdmin ? [] : [userId]);
-
-    const views = await q(isAdmin
-      ? `SELECT COALESCE(SUM(view_count),0) as total FROM listings`
-      : `SELECT COALESCE(SUM(view_count),0) as total FROM listings WHERE seller_id = ?`,
-      isAdmin ? [] : [userId]);
-
-    const activityRes = await pool.query(
-      `SELECT al.action, al.entity_type, al.details, al.created_at,
-       u.display_name as user_name FROM audit_log al
-       LEFT JOIN users u ON al.user_id = u.id
-       ${isAdmin ? '' : 'WHERE al.user_id = ?'}
-       ORDER BY al.created_at DESC LIMIT 10`,
-      isAdmin ? [] : [userId]
-    );
+    const [listings, tickets, sales, views, vaultRes, topVehicles, activityRes] = await Promise.all([
+      q(isAdmin
+        ? `SELECT COUNT(*) as count FROM listings WHERE status = 'available'`
+        : `SELECT COUNT(*) as count FROM listings WHERE seller_id = ? AND status = 'available'`,
+        isAdmin ? [] : [userId]),
+      q(isAdmin
+        ? `SELECT COUNT(*) as count FROM tickets WHERE status IN ('open','in_progress')`
+        : `SELECT COUNT(*) as count FROM tickets WHERE assigned_to = ? AND status IN ('open','in_progress')`,
+        isAdmin ? [] : [userId]),
+      q(isAdmin
+        ? `SELECT COUNT(*) as count FROM listings WHERE status = 'sold' AND sold_at >= date('now','start of month')`
+        : `SELECT COUNT(*) as count FROM listings WHERE sold_by = ? AND status = 'sold' AND sold_at >= date('now','start of month')`,
+        isAdmin ? [] : [userId]),
+      q(isAdmin
+        ? `SELECT COALESCE(SUM(view_count),0) as total FROM listings`
+        : `SELECT COALESCE(SUM(view_count),0) as total FROM listings WHERE seller_id = ?`,
+        isAdmin ? [] : [userId]),
+      pool.query(
+        `SELECT COALESCE(SUM(amount), 0) as total FROM vault_entries WHERE owner_id = ? AND status = 'pending'`,
+        [userId]
+      ),
+      pool.query(
+        `SELECT brand, model, 
+                SUM(CASE WHEN status = 'sold' THEN 1 ELSE 0 END) as sales_count, 
+                SUM(view_count) as views_count, 
+                MAX(image_path) as image_path 
+         FROM listings 
+         ${isAdmin ? '' : 'WHERE seller_id = ? '}
+         GROUP BY brand, model 
+         HAVING sales_count > 0 OR views_count > 0 
+         ORDER BY sales_count DESC, views_count DESC 
+         LIMIT 5`,
+        isAdmin ? [] : [userId]
+      ),
+      pool.query(
+        `SELECT al.action, al.entity_type, al.details, al.created_at,
+         u.display_name as user_name FROM audit_log al
+         LEFT JOIN users u ON al.user_id = u.id
+         ${isAdmin ? '' : 'WHERE al.user_id = ?'}
+         ORDER BY al.created_at DESC LIMIT 10`,
+        isAdmin ? [] : [userId]
+      )
+    ]);
 
     const ACTION_LABELS = {
       login:'hat sich angemeldet', listing_created:'hat ein Inserat erstellt',
       listing_sold:'hat ein Fahrzeug verkauft', ticket_created:'hat ein Ticket erstellt',
       ticket_message:'hat eine Nachricht gesendet',
     };
-
-    const vaultRes = await pool.query(
-      `SELECT COALESCE(SUM(amount), 0) as total FROM vault_entries WHERE owner_id = ? AND status = 'pending'`,
-      [userId]
-    );
-
-    const topVehicles = await pool.query(
-      `SELECT brand, model, 
-              SUM(CASE WHEN status = 'sold' THEN 1 ELSE 0 END) as sales_count, 
-              SUM(view_count) as views_count, 
-              MAX(image_path) as image_path 
-       FROM listings 
-       ${isAdmin ? '' : 'WHERE seller_id = ? '}
-       GROUP BY brand, model 
-       HAVING sales_count > 0 OR views_count > 0 
-       ORDER BY sales_count DESC, views_count DESC 
-       LIMIT 5`,
-      isAdmin ? [] : [userId]
-    );
 
     res.json({
       active_listings: parseInt(listings.count),

@@ -9,14 +9,14 @@ const NotificationContext = createContext({
 export const useNotifications = () => useContext(NotificationContext);
 
 export const NotificationProvider = ({ children }) => {
- const { user } = useAuth();
+ const { user, hasRole } = useAuth();
  const [openTickets, setOpenTickets] = useState(0);
 
  const fetchNotifications = async () => {
- if (!user) return;
+ if (!user || !hasRole('mitarbeiter')) return;
  try {
  // Fast endpoint to get ticket stats
- const res = await fetch('/api/stats/dashboard', { credentials: 'include' });
+ const res = await fetch('/api/stats/notifications', { credentials: 'include' });
  if (res.ok) {
  const data = await res.json();
  setOpenTickets(data.open_tickets || 0);
@@ -26,16 +26,19 @@ export const NotificationProvider = ({ children }) => {
  }
  };
 
- useEffect(() => {
- if (user) {
- fetchNotifications();
- // Poll every 30 seconds
- const timer = setInterval(fetchNotifications, 30000);
- return () => clearInterval(timer);
- } else {
- setOpenTickets(0);
- }
- }, [user]);
+  useEffect(() => {
+    if (user && hasRole('mitarbeiter')) {
+      fetchNotifications();
+      const eventSource = new EventSource('/api/stats/notifications/stream', { withCredentials: true });
+      eventSource.onmessage = (event) => {
+        if (event.data === 'update') fetchNotifications();
+      };
+      eventSource.onerror = () => eventSource.close();
+      return () => eventSource.close();
+    } else {
+      setOpenTickets(0);
+    }
+  }, [user, hasRole]);
 
  return (
  <NotificationContext.Provider value={{ openTickets, refreshNotifications: fetchNotifications }}>

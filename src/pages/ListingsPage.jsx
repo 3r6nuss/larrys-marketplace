@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Plus, MoreHorizontal, Pencil, Trash2, Eye, Car, ImagePlus, X, ClipboardPaste, Star, GripVertical, Crown } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash2, Eye, Car, ImagePlus, X, ClipboardPaste, Star, GripVertical, Crown, DollarSign } from 'lucide-react';
 
 const CATEGORIES = ['Sport', 'SUV', 'Muscle', 'Limousine', 'Kompakt', 'Coupé', 'Offroad', 'Van', 'Sonstige'];
 const STATUS_MAP = {
@@ -28,12 +28,18 @@ export default function ListingsPage() {
  const [loading, setLoading] = useState(true);
  const [dialogOpen, setDialogOpen] = useState(false);
  const [editingListing, setEditingListing] = useState(null);
+ const [sellListing, setSellListing] = useState(null); // Which listing is currently being sold
+ const [sellForm, setSellForm] = useState({ sold_to_name: '', sold_price: '' });
+ const [sellDialogOpen, setSellDialogOpen] = useState(false);
  const [images, setImages] = useState([]); // { id?, preview, base64?, isExisting?, isCover }
  const [dragIdx, setDragIdx] = useState(null);
  const [videoStream, setVideoStream] = useState(null);
  const videoRef = useRef(null);
  const dropZoneRef = useRef(null);
  const MAX_IMAGES = 8;
+ 
+ const [staffList, setStaffList] = useState([]);
+ const [selectedSellerId, setSelectedSellerId] = useState('me');
 
  // Form state
  const [form, setForm] = useState({
@@ -49,9 +55,21 @@ export default function ListingsPage() {
  }
  }, []);
 
+ const fetchStaff = useCallback(async () => {
+   if (hasRole('mitarbeiter')) {
+     try {
+       const res = await fetch('/api/users/staff', { credentials: 'include' });
+       if (res.ok) setStaffList(await res.json());
+     } catch (err) {
+       console.error('Fetch staff error:', err);
+     }
+   }
+ }, [hasRole]);
+
  const fetchListings = useCallback(async () => {
  try {
- const params = hasRole('inhaber') ? '' : `?seller_id=${user.id}`;
+ const params = selectedSellerId === 'me' ? `?seller_id=${user?.id}` : 
+                selectedSellerId !== 'all' ? `?seller_id=${selectedSellerId}` : '';
  const res = await fetch(`/api/listings${params}`, { credentials: 'include' });
  if (res.ok) setListings(await res.json());
  } catch (err) {
@@ -59,12 +77,13 @@ export default function ListingsPage() {
  } finally {
  setLoading(false);
  }
- }, [user, hasRole]);
+ }, [selectedSellerId]);
 
  useEffect(() => { 
  fetchListings(); 
  fetchCatalog();
- }, [fetchListings, fetchCatalog]);
+ fetchStaff();
+ }, [fetchListings, fetchCatalog, fetchStaff]);
 
  // ── Clipboard Paste (Strg+V) — adds to multi-image array ──
  useEffect(() => {
@@ -330,16 +349,73 @@ export default function ListingsPage() {
  }
  };
 
+  const handleSellSubmit = async () => {
+    if (!sellListing) return;
+    try {
+      const body = {
+        sold_to_name: sellForm.sold_to_name,
+        sold_price: sellForm.sold_price,
+      };
+      
+      // If the listing belongs to another user, pass on_behalf_of
+      if (sellListing.seller_id !== user.id) {
+        body.on_behalf_of = sellListing.seller_id;
+      }
+
+      const res = await fetch(`/api/listings/${sellListing.id}/sell`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body)
+      });
+      
+      if (res.ok) {
+        toast.success('Fahrzeug erfolgreich verkauft!');
+        setSellDialogOpen(false);
+        fetchListings();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Fehler beim Verkaufen.');
+      }
+    } catch (err) {
+      toast.error('Netzwerkfehler.');
+    }
+  };
+
  return (
  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-200 max-w-6xl mx-auto">
  <div className="flex items-center justify-between pb-2 border-b border-border/40">
  <div>
- <h1 className="text-3xl font-bold tracking-tight">Meine Inserate</h1>
- <p className="text-muted-foreground mt-1">Verwalte deine Fahrzeug-Inserate.</p>
+ <h1 className="text-3xl font-bold tracking-tight">Inserate & Kataloge</h1>
+ <p className="text-muted-foreground mt-1">Verwalte Fahrzeug-Inserate und Kataloge.</p>
  </div>
+ <div className="flex items-center gap-4">
+ {hasRole('mitarbeiter') && (
+   <Select value={selectedSellerId} onValueChange={setSelectedSellerId}>
+     <SelectTrigger className="w-[220px] cursor-pointer">
+       <SelectValue>
+         {selectedSellerId === 'me' ? '👤 Meine Inserate' : 
+          selectedSellerId === 'all' ? '👥 Alle Mitarbeiter' : 
+          (staffList.find(s => s.id.toString() === selectedSellerId)?.display_name || 
+           staffList.find(s => s.id.toString() === selectedSellerId)?.username || 
+           selectedSellerId)}
+       </SelectValue>
+     </SelectTrigger>
+     <SelectContent>
+       <SelectItem value="me" className="cursor-pointer">👤 Meine Inserate</SelectItem>
+       <SelectItem value="all" className="cursor-pointer">👥 Alle Mitarbeiter</SelectItem>
+       {staffList.filter(s => s.id !== user?.id).map(s => (
+         <SelectItem key={s.id} value={s.id.toString()} className="cursor-pointer">
+           {s.display_name || s.username}
+         </SelectItem>
+       ))}
+     </SelectContent>
+   </Select>
+ )}
  <Button onClick={openCreate} className="gap-2 cursor-pointer">
  <Plus className="h-4 w-4" /> Neues Inserat
  </Button>
+ </div>
  </div>
 
  {loading ? (
@@ -421,9 +497,18 @@ export default function ListingsPage() {
  {l.is_featured ? 'Featured entfernen' : 'Als Featured markieren'}
  </DropdownMenuItem>
  {l.status === 'available' && (
+  <>
  <DropdownMenuItem onClick={() => handleStatusChange(l.id, 'reserved')}>
  Reservieren
  </DropdownMenuItem>
+ <DropdownMenuItem onClick={() => {
+   setSellListing(l);
+   setSellForm({ sold_to_name: '', sold_price: l.custom_price?.toString() || '' });
+   setSellDialogOpen(true);
+ }} className="text-success focus:text-success">
+ <DollarSign className="mr-2 h-4 w-4" /> Verkaufen
+ </DropdownMenuItem>
+ </>
  )}
  {l.status === 'reserved' && (
  <DropdownMenuItem onClick={() => handleStatusChange(l.id, 'available')}>
@@ -634,6 +719,46 @@ export default function ListingsPage() {
  </DialogFooter>
  </DialogContent>
  </Dialog>
- </div>
- );
+
+  {/* Sell Dialog */}
+  <Dialog open={sellDialogOpen} onOpenChange={setSellDialogOpen}>
+    <DialogContent className="max-w-sm">
+      <DialogHeader>
+        <DialogTitle>Fahrzeug verkaufen</DialogTitle>
+        <DialogDescription>
+          {sellListing ? `Verkaufe ${sellListing.brand} ${sellListing.model}` : ''}
+          {sellListing && sellListing.seller_id !== user.id && (
+            <span className="block mt-1 text-orange-500 font-medium">Verkauf im Namen eines anderen Mitarbeiters.</span>
+          )}
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4 py-4">
+        <div className="space-y-2">
+          <Label htmlFor="sold_to_name">Käufer Name</Label>
+          <Input 
+            id="sold_to_name" 
+            value={sellForm.sold_to_name} 
+            onChange={e => setSellForm(f => ({ ...f, sold_to_name: e.target.value }))}
+            placeholder="Name des Kunden"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="sold_price">Verkaufspreis ($)</Label>
+          <Input 
+            id="sold_price" 
+            type="number"
+            value={sellForm.sold_price} 
+            onChange={e => setSellForm(f => ({ ...f, sold_price: e.target.value }))}
+            placeholder="Endpreis"
+          />
+        </div>
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={() => setSellDialogOpen(false)} className="cursor-pointer">Abbrechen</Button>
+        <Button onClick={handleSellSubmit} className="bg-success text-success-foreground hover:bg-success/90 cursor-pointer">Verkaufen</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+  </div>
+  );
 }

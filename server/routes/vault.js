@@ -36,11 +36,18 @@ router.get('/', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
  * PUT /api/vault/:id/payout
  * Mark vault entry as paid out (inhaber+).
  */
-router.put('/:id/payout', requireAuth, requireRole('inhaber'), async (req, res) => {
+router.put('/:id/payout', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
   try {
     const entry = await pool.query('SELECT * FROM vault_entries WHERE id = ?', [req.params.id]);
     if (entry.rows.length === 0) return res.status(404).json({ error: 'Eintrag nicht gefunden.' });
     if (entry.rows[0].status === 'paid_out') return res.status(400).json({ error: 'Bereits ausgezahlt.' });
+
+    const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
+    const isOwner = entry.rows[0].owner_id === req.user.id;
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ error: 'Keine Berechtigung zur Auszahlung.' });
+    }
 
     await pool.query(
       "UPDATE vault_entries SET status = 'paid_out', paid_out_at = datetime('now'), confirmed_by = ? WHERE id = ?",

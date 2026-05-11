@@ -200,7 +200,29 @@ router.post('/', requireAuth, requireRole('mitarbeiter'), upload.single('image')
     }
 
     await logAction(req.user.id, 'listing_created', 'listing', listingId, { brand, model, plate }, req.ip);
-    res.status(201).json(created.rows[0]);
+
+    // Auto-match open vehicle requests for this brand+model
+    let matchedRequestsCount = 0;
+    try {
+      const matchingRequests = await pool.query(
+        `SELECT id FROM vehicle_requests WHERE status = 'open' AND LOWER(brand) = LOWER(?) AND LOWER(model) = LOWER(?)`,
+        [brand, model]
+      );
+      if (matchingRequests.rows.length > 0) {
+        matchedRequestsCount = matchingRequests.rows.length;
+        for (const req_row of matchingRequests.rows) {
+          await pool.query(
+            `UPDATE vehicle_requests SET status = 'found', matched_listing_id = ?, handled_by = ?, updated_at = datetime('now') WHERE id = ?`,
+            [listingId, req.user.id, req_row.id]
+          );
+        }
+        console.log(`🔔 Auto-matched ${matchedRequestsCount} vehicle request(s) for ${brand} ${model}`);
+      }
+    } catch (matchErr) {
+      console.error('Auto-match vehicle requests error:', matchErr);
+    }
+
+    res.status(201).json({ ...created.rows[0], matched_requests_count: matchedRequestsCount });
   } catch (err) {
     console.error('Create listing error:', err);
     res.status(500).json({ error: 'Fehler beim Erstellen.' });

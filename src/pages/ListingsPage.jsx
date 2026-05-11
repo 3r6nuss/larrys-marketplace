@@ -25,6 +25,7 @@ export default function ListingsPage() {
  const { user, hasRole } = useAuth();
  const [listings, setListings] = useState([]);
  const [catalog, setCatalog] = useState([]);
+ const [vehicleOptions, setVehicleOptions] = useState([]);
  const [loading, setLoading] = useState(true);
  const [dialogOpen, setDialogOpen] = useState(false);
  const [editingListing, setEditingListing] = useState(null);
@@ -48,8 +49,13 @@ export default function ListingsPage() {
 
  const fetchCatalog = useCallback(async () => {
  try {
- const res = await fetch('/api/catalog', { credentials: 'include' });
- if (res.ok) setCatalog(await res.json());
+ // Fetch full catalog (with prices, for price validation) and vehicle list (for dropdowns)
+ const [catRes, vehRes] = await Promise.all([
+ fetch('/api/catalog', { credentials: 'include' }),
+ fetch('/api/catalog/vehicles'),
+ ]);
+ if (catRes.ok) setCatalog(await catRes.json());
+ if (vehRes.ok) setVehicleOptions(await vehRes.json());
  } catch (err) {
  console.error('Fetch catalog error:', err);
  }
@@ -237,16 +243,29 @@ export default function ListingsPage() {
  await fetch(`/api/listings/${editingListing.id}/images/reorder`, {
  method: 'PUT', headers: { 'Content-Type': 'application/json' },
  credentials: 'include', body: JSON.stringify({ order: existingIds }),
- });
- } catch {}
- }
- }
- };
+  });
+  } catch {}
+  }
+  }
+  };
 
- const handleSubmit = async () => {
+  const handleSubmit = async () => {
  if (!form.brand || !form.model) {
  toast.error('Marke und Modell sind Pflichtfelder.');
  return;
+ }
+
+ // Price validation
+ const catItem = catalog.find(v => 
+  v.brand.toLowerCase() === form.brand.toLowerCase() && 
+  v.model.toLowerCase() === form.model.toLowerCase()
+ );
+ if (catItem && form.custom_price) {
+  const price = parseInt(form.custom_price);
+  if (price > catItem.max_sell_price) {
+   toast.error(`Der Preis darf das Maximum von $${catItem.max_sell_price.toLocaleString()} nicht überschreiten.`);
+   return;
+  }
  }
 
  const body = { ...form };
@@ -313,7 +332,11 @@ export default function ListingsPage() {
  credentials: 'include', body: JSON.stringify(body),
  });
  if (res.ok) {
+ const data = await res.json();
  toast.success('Inserat erstellt!');
+ if (data.matched_requests_count > 0) {
+  toast.success(`🎉 ${data.matched_requests_count} Kunden suchen dieses Fahrzeug! Sie wurden benachrichtigt.`, { duration: 6000 });
+ }
  setDialogOpen(false);
  fetchListings();
  } else {
@@ -672,36 +695,38 @@ export default function ListingsPage() {
  <div className="grid grid-cols-2 gap-3">
  <div className="space-y-1.5">
  <Label htmlFor="brand">Marke *</Label>
- <Input 
- id="brand" 
- list="brand-options"
- value={form.brand} 
- onChange={e => setForm(f => ({ ...f, brand: e.target.value }))} 
- placeholder="z.B. Pegassi" 
- />
- <datalist id="brand-options">
- {[...new Set(catalog.map(v => v.brand))].sort().map(b => (
- <option key={b} value={b} />
+ <Select value={form.brand} onValueChange={v => setForm(f => ({ ...f, brand: v, model: '' }))}>
+ <SelectTrigger id="brand" className="cursor-pointer"><SelectValue placeholder="Marke wählen..." /></SelectTrigger>
+ <SelectContent className="max-h-60">
+ {[...new Set(vehicleOptions.map(v => v.brand))].sort().map(b => (
+ <SelectItem key={b} value={b} className="cursor-pointer">{b}</SelectItem>
  ))}
- </datalist>
+ </SelectContent>
+ </Select>
  </div>
  <div className="space-y-1.5">
- <Label htmlFor="model">Modell *</Label>
- <Input 
- id="model" 
- list="model-options"
- value={form.model} 
- onChange={e => setForm(f => ({ ...f, model: e.target.value }))} 
- placeholder="z.B. Toros CTX" 
- />
- <datalist id="model-options">
- {catalog
- .filter(v => !form.brand || v.brand.toLowerCase() === form.brand.toLowerCase())
+  <Label htmlFor="model">Modell *</Label>
+  <Select value={form.model} onValueChange={v => {
+   const catItem = catalog.find(item => 
+    item.brand.toLowerCase() === form.brand.toLowerCase() && 
+    item.model.toLowerCase() === v.toLowerCase()
+   );
+   let price = form.custom_price;
+   if (catItem) {
+    price = Math.floor((catItem.min_sell_price + catItem.max_sell_price) / 2).toString();
+   }
+   setForm(f => ({ ...f, model: v, custom_price: price }));
+  }} disabled={!form.brand}>
+ <SelectTrigger id="model" className="cursor-pointer"><SelectValue placeholder={form.brand ? "Modell wählen..." : "Erst Marke wählen"} /></SelectTrigger>
+ <SelectContent className="max-h-60">
+ {vehicleOptions
+ .filter(v => v.brand.toLowerCase() === (form.brand || '').toLowerCase())
  .map(v => (
- <option key={`${v.brand}-${v.model}`} value={v.model} />
+ <SelectItem key={`${v.brand}-${v.model}`} value={v.model} className="cursor-pointer">{v.model}</SelectItem>
  ))
  }
- </datalist>
+ </SelectContent>
+ </Select>
  </div>
  </div>
 
@@ -736,7 +761,7 @@ export default function ListingsPage() {
    const max = catItem.max_sell_price;
    
    let status = 'neutral';
-   let label = 'Unbekannt';
+   let label = '';
    let color = 'text-muted-foreground';
 
    if (price >= min && price <= max) {
@@ -747,14 +772,10 @@ export default function ListingsPage() {
     status = 'low';
     label = 'Sehr günstig';
     color = 'text-blue-400';
-   } else if (price > max * 1.2) {
+   } else {
     status = 'high';
-    label = 'Sehr teuer';
+    label = 'Zu teuer (Max überschritten)';
     color = 'text-destructive';
-   } else if (price > max) {
-    status = 'warn';
-    label = 'Über Maximum';
-    color = 'text-warning';
    }
 
    return (

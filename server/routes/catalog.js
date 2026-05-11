@@ -6,17 +6,29 @@ const router = Router();
 
 /**
  * GET /api/catalog/vehicles
- * Public: returns brand+model list (no prices) for customer vehicle requests.
+ * Public: returns brand+model list (no prices) for vehicle selection dropdowns.
+ * Merges data from vehicle_catalog (CSV import) AND existing listings.
  */
 router.get('/vehicles', async (req, res) => {
   const { q } = req.query;
-  let where = [];
+  let catWhere = '';
+  let listWhere = '';
   let params = [];
-  if (q) { where.push('(brand LIKE ? OR model LIKE ?)'); params.push(`%${q}%`, `%${q}%`); }
+  if (q) {
+    catWhere = 'WHERE (brand LIKE ? OR model LIKE ?)';
+    listWhere = 'WHERE (brand LIKE ? OR model LIKE ?)';
+    params = [`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`];
+  }
   
   try {
     const result = await pool.query(
-      `SELECT DISTINCT brand, model FROM vehicle_catalog ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY brand ASC, model ASC`,
+      `SELECT DISTINCT brand, model FROM (
+        SELECT brand, model FROM vehicle_catalog ${catWhere}
+        UNION
+        SELECT brand, model FROM listings ${listWhere}
+      ) combined
+      WHERE brand IS NOT NULL AND model IS NOT NULL AND brand != '' AND model != ''
+      ORDER BY brand ASC, model ASC`,
       params
     );
     res.json(result.rows);

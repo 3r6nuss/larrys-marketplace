@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
@@ -133,7 +134,7 @@ export default function VehicleRequestsPage({ isModal }) {
 
  const catalogBrands = [...new Set(catalog.map(v => v.brand))].sort();
  const catalogModels = catalog
-  .filter(v => !brand || v.brand.toLowerCase() === brand.toLowerCase())
+  .filter(v => v.brand.toLowerCase() === (brand || '').toLowerCase())
   .map(v => v.model);
 
  return (
@@ -170,50 +171,34 @@ export default function VehicleRequestsPage({ isModal }) {
        <Sparkles className="h-5 w-5 text-chart-2" />
        Neues Wunschfahrzeug
       </CardTitle>
-      <CardDescription>Wähle ein Fahrzeug aus unserem Katalog oder gib eine freie Eingabe ein.</CardDescription>
+      <CardDescription>Wähle ein Fahrzeug aus unserem Katalog aus.</CardDescription>
      </CardHeader>
      <CardContent>
       <form onSubmit={handleCreate} className="space-y-4">
        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5">
          <label className="text-xs font-bold uppercase text-muted-foreground">Marke *</label>
-         <Input
-          value={brand}
-          onChange={e => setBrand(e.target.value)}
-          list="req-brand-options"
-          placeholder="Marke eingeben oder auswählen..."
-          required
-         />
-         <datalist id="req-brand-options">
-          {catalogBrands.map(b => (
-           <option key={b} value={b} />
-          ))}
-         </datalist>
+         <Select value={brand} onValueChange={v => { setBrand(v); setModel(''); }}>
+          <SelectTrigger className="cursor-pointer"><SelectValue placeholder="Marke wählen..." /></SelectTrigger>
+          <SelectContent className="max-h-60">
+           {catalogBrands.map(b => (
+            <SelectItem key={b} value={b} className="cursor-pointer">{b}</SelectItem>
+           ))}
+          </SelectContent>
+         </Select>
         </div>
         <div className="space-y-1.5">
          <label className="text-xs font-bold uppercase text-muted-foreground">Modell *</label>
-         <Input
-          value={model}
-          onChange={e => setModel(e.target.value)}
-          list="req-model-options"
-          placeholder="Modell eingeben oder auswählen..."
-          required
-         />
-         <datalist id="req-model-options">
-          {catalogModels.map((m, i) => (
-           <option key={`${m}-${i}`} value={m} />
-          ))}
-         </datalist>
+         <Select value={model} onValueChange={setModel} disabled={!brand}>
+          <SelectTrigger className="cursor-pointer"><SelectValue placeholder={brand ? "Modell wählen..." : "Erst Marke wählen"} /></SelectTrigger>
+          <SelectContent className="max-h-60">
+           {catalogModels.map((m, i) => (
+            <SelectItem key={`${m}-${i}`} value={m} className="cursor-pointer">{m}</SelectItem>
+           ))}
+          </SelectContent>
+         </Select>
         </div>
        </div>
-       {brand && model && (
-        <p className="text-xs text-chart-2 flex items-center gap-1.5">
-         <Car className="h-3.5 w-3.5" />
-         {catalog.some(v => v.brand.toLowerCase() === brand.toLowerCase() && v.model.toLowerCase() === model.toLowerCase())
-          ? '✓ Im Katalog gefunden'
-          : 'Freie Eingabe — nicht im Katalog'}
-        </p>
-       )}
        <div className="space-y-1.5">
         <label className="text-xs font-bold uppercase text-muted-foreground">Anmerkung (optional)</label>
         <Input
@@ -269,7 +254,6 @@ export default function VehicleRequestsPage({ isModal }) {
         <Card key={r.id} className="border-success/30 bg-success/5 overflow-hidden group hover:shadow-lg hover:shadow-success/10 transition-all">
          <CardContent className="p-4">
           <div className="flex items-center gap-4">
-           {/* Matched listing image */}
            <button
             onClick={() => r.matched_listing_id && setDetailId(r.matched_listing_id)}
             className="h-16 w-20 rounded-lg overflow-hidden bg-muted/30 shrink-0 cursor-pointer border border-success/20 hover:border-success/50 transition-colors"
@@ -335,13 +319,11 @@ export default function VehicleRequestsPage({ isModal }) {
             </p>
            </div>
            <div className="flex items-center gap-2 shrink-0">
-            {/* Staff: Match button */}
             {isStaff && matchingId !== r.id && (
              <Button size="sm" variant="outline" onClick={() => setMatchingId(r.id)} className="gap-1.5 cursor-pointer text-xs">
               <Link2 className="h-3.5 w-3.5" /> Zuweisen
              </Button>
             )}
-            {/* Cancel button */}
             {(r.customer_id === user?.id || isStaff) && (
              <Button size="sm" variant="ghost" onClick={() => handleCancel(r.id)} className="text-destructive hover:text-destructive cursor-pointer text-xs">
               <XCircle className="h-3.5 w-3.5" />

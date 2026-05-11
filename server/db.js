@@ -339,6 +339,36 @@ export async function migrate() {
     `);
 
     await client.query(`
+      CREATE TABLE IF NOT EXISTS reviews (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        listing_id    INTEGER NOT NULL,
+        seller_id     INTEGER NOT NULL,
+        customer_id   INTEGER NOT NULL,
+        rating        INTEGER NOT NULL,
+        comment       TEXT,
+        created_at    TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_reviews_seller ON reviews(seller_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_reviews_listing ON reviews(listing_id)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS vehicle_requests (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_id         INTEGER NOT NULL,
+        brand               TEXT NOT NULL,
+        model               TEXT NOT NULL,
+        notes               TEXT,
+        status              TEXT DEFAULT 'open',
+        matched_listing_id  INTEGER,
+        handled_by          INTEGER,
+        created_at          TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at          TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS rate_limits (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id     INTEGER NOT NULL,
@@ -356,6 +386,8 @@ export async function migrate() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_tickets_assigned ON tickets(assigned_to)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_listing_images_listing ON listing_images(listing_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_vault_owner ON vault_entries(owner_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_vehicle_requests_customer ON vehicle_requests(customer_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_vehicle_requests_status ON vehicle_requests(status)`);
 
     if (client.release) client.release();
     console.log('✅ Database migrations complete');

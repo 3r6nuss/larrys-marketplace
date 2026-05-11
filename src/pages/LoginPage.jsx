@@ -44,8 +44,9 @@ export default function LoginPage() {
  }
 
  return (
- <div className="flex items-center justify-center min-h-screen gradient-bg p-4">
- <Card className="w-full max-w-md border-border/50 bg-card/80 glow-primary">
+ <div className="flex flex-col min-h-screen gradient-bg">
+      <div className="flex-1 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md border-border/50 bg-card/80 glow-primary">
  <CardHeader className="text-center space-y-4 pb-2">
  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-bold text-2xl shadow-lg shadow-primary/20">
  L
@@ -103,6 +104,12 @@ export default function LoginPage() {
  )}
  </CardContent>
  </Card>
- </div>
+      </div>
+      <footer className="py-4 px-4 text-center text-[10px] text-muted-foreground/60 leading-relaxed bg-background/20 backdrop-blur-sm border-t border-border/10">
+        <p className="max-w-4xl mx-auto">
+          Listings, pricing, and imagery on this website may be fictional or illustrative and do not represent real-world products, services, or transactions. All content is created for entertainment purposes within a fictional roleplay context. Larry's Marketplace is a fictional business operating within a GTA RP server environment. This is an independent creative presentation and is not affiliated with, sponsored by, or endorsed by Rockstar Games, Take-Two Interactive, or any related entities. All trademarks, game assets, and intellectual property mentioned or depicted belong to their respective owners.
+        </p>
+      </footer>
+    </div>
  );
 }

@@ -5,6 +5,28 @@ import { requireAuth, requireRole, logAction } from '../middleware/auth.js';
 const router = Router();
 
 /**
+ * GET /api/catalog/vehicles
+ * Public: returns brand+model list (no prices) for customer vehicle requests.
+ */
+router.get('/vehicles', async (req, res) => {
+  const { q } = req.query;
+  let where = [];
+  let params = [];
+  if (q) { where.push('(brand LIKE ? OR model LIKE ?)'); params.push(`%${q}%`, `%${q}%`); }
+  
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT brand, model FROM vehicle_catalog ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY brand ASC, model ASC`,
+      params
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Public catalog error:', err);
+    res.status(500).json({ error: 'Fehler.' });
+  }
+});
+
+/**
  * GET /api/catalog
  */
 router.get('/', requireAuth, requireRole('mitarbeiter'), async (req, res) => {

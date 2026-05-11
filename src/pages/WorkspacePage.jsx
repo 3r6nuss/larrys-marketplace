@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
  ArrowRight, Ticket, Wallet, Package, Calculator,
  StickyNote, BarChart3, Users, ScrollText, Database,
- TrendingUp, Store, Wrench
+ TrendingUp, Store, Wrench, Trophy, History, Search
 } from 'lucide-react';
 import PopupShell from '@/components/PopupShell';
 
@@ -23,6 +23,7 @@ export default function WorkspacePage() {
  const [staffStats, setStaffStats] = useState(null);
  const [loading, setLoading] = useState(true);
  const [notes, setNotes] = useState('');
+ const [requestCount, setRequestCount] = useState(0);
 
  const currentDate = new Date().toLocaleDateString('de-DE', {
  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -54,6 +55,11 @@ export default function WorkspacePage() {
  .then(data => { if (data) setStaffStats(data); })
  .catch(console.error)
  .finally(() => setLoading(false));
+
+ fetch('/api/requests/count', { credentials: 'include' })
+  .then(r => r.ok ? r.json() : null)
+  .then(data => { if (data) setRequestCount(data.open_requests ?? 0); })
+  .catch(() => {});
  }, [user]);
 
  const openModal = (name) => setSearchParams({ modal: name });
@@ -136,6 +142,11 @@ export default function WorkspacePage() {
  title="Meine Inserate" subtitle="Aktive Fahrzeuge auf dem Marktplatz" value={staffStats?.active_listings ?? 0} valueColor="text-primary"
  cta="Verwalten" borderColor="border-primary/20 hover:border-primary/40" />
 
+ {/* Fahrzeuganfragen Tile */}
+ <Tile onClick={() => openModal('requests')} icon={Search} iconColor="text-chart-2" iconBg="bg-chart-2/10"
+  title="Fahrzeuganfragen" subtitle="Offene Kundenwünsche" value={requestCount} valueColor="text-chart-2"
+  cta="Ansehen" borderColor="border-chart-2/20 hover:border-chart-2/40" />
+
  {/* Kunden Dashboard Tile */}
  <Card onClick={() => navigate('/kunde')} className="bg-card/40 border-chart-4/20 hover:border-chart-4/40 transition-all hover:shadow-lg cursor-pointer group relative overflow-hidden">
  <div className="absolute top-1/2 -translate-y-1/2 right-4 opacity-[0.04] group-hover:opacity-[0.08] transition-all duration-200 group-hover:scale-110">
@@ -189,24 +200,20 @@ export default function WorkspacePage() {
 
  {/* Admin Tiles */}
  {hasRole('inhaber') && (
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
- <Tile onClick={() => openModal('stats')} icon={BarChart3} iconColor="text-chart-2" iconBg="bg-chart-2/10" title="Statistiken" borderColor="border-chart-2/20 hover:border-chart-2/40">
- <div className="text-sm font-bold text-chart-2 mt-1 flex items-center gap-1">Öffnen <ArrowRight className="h-3 w-3" /></div>
- </Tile>
- <Tile onClick={() => openModal('users')} icon={Users} iconColor="text-chart-4" iconBg="bg-chart-4/10" title="Benutzerverwaltung" borderColor="border-chart-4/20 hover:border-chart-4/40">
- <div className="text-sm font-bold text-chart-4 mt-1 flex items-center gap-1">Öffnen <ArrowRight className="h-3 w-3" /></div>
- </Tile>
- {hasRole('stv_admin') && (
- <Tile onClick={() => openModal('logs')} icon={ScrollText} iconColor="text-chart-3" iconBg="bg-chart-3/10" title="Audit-Logs" borderColor="border-chart-3/20 hover:border-chart-3/40">
- <div className="text-sm font-bold text-chart-3 mt-1 flex items-center gap-1">Öffnen <ArrowRight className="h-3 w-3" /></div>
- </Tile>
- )}
- {hasRole('superadmin') && (
- <Tile onClick={() => openModal('catalog_admin')} icon={Database} iconColor="text-chart-1" iconBg="bg-chart-1/10" title="Katalog-Import" borderColor="border-chart-1/20 hover:border-chart-1/40">
- <div className="text-sm font-bold text-chart-1 mt-1 flex items-center gap-1">Öffnen <ArrowRight className="h-3 w-3" /></div>
- </Tile>
- )}
- </div>
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <Tile onClick={() => openModal('leaderboard')} icon={Trophy} iconColor="text-warning" iconBg="bg-warning/10" title="Leaderboard" borderColor="border-warning/20 hover:border-warning/40">
+      <div className="text-sm font-bold text-warning mt-1 flex items-center gap-1">Öffnen <ArrowRight className="h-3 w-3" /></div>
+    </Tile>
+    <Tile onClick={() => openModal('activity')} icon={History} iconColor="text-indigo-400" iconBg="bg-indigo-400/10" title="Aktivitäts-Feed" borderColor="border-indigo-400/20 hover:border-indigo-400/40">
+      <div className="text-sm font-bold text-indigo-400 mt-1 flex items-center gap-1">Öffnen <ArrowRight className="h-3 w-3" /></div>
+    </Tile>
+    <Tile onClick={() => openModal('stats')} icon={BarChart3} iconColor="text-chart-2" iconBg="bg-chart-2/10" title="Statistiken" borderColor="border-chart-2/20 hover:border-chart-2/40">
+      <div className="text-sm font-bold text-chart-2 mt-1 flex items-center gap-1">Öffnen <ArrowRight className="h-3 w-3" /></div>
+    </Tile>
+    <Tile onClick={() => openModal('users')} icon={Users} iconColor="text-chart-4" iconBg="bg-chart-4/10" title="Benutzerverwaltung" borderColor="border-chart-4/20 hover:border-chart-4/40">
+      <div className="text-sm font-bold text-chart-4 mt-1 flex items-center gap-1">Öffnen <ArrowRight className="h-3 w-3" /></div>
+    </Tile>
+  </div>
  )}
 
  {/* Notizblock */}

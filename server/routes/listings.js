@@ -186,11 +186,17 @@ router.post('/', requireAuth, requireRole('mitarbeiter'), upload.single('image')
       if (p) allImages.push(p);
     }
 
+    const coverIdx = req.body.cover_index !== undefined ? parseInt(req.body.cover_index) : 0;
+
     for (let i = 0; i < allImages.length; i++) {
       await pool.query(
         'INSERT INTO listing_images (listing_id, image_path, sort_order, is_cover) VALUES (?, ?, ?, ?)',
-        [listingId, allImages[i], i, i === 0 ? 1 : 0]
+        [listingId, allImages[i], i, i === coverIdx ? 1 : 0]
       );
+    }
+
+    if (coverIdx > 0 && allImages[coverIdx]) {
+      await pool.query('UPDATE listings SET image_path = ? WHERE id = ?', [allImages[coverIdx], listingId]);
     }
 
     await logAction(req.user.id, 'listing_created', 'listing', listingId, { brand, model, plate }, req.ip);

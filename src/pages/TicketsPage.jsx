@@ -27,7 +27,7 @@ const STATUS_MAP = {
 export default function TicketsPage({ isModal }) {
  const { user, hasRole } = useAuth();
  const navigate = useNavigate();
- const [searchParams] = useSearchParams();
+ const [searchParams, setSearchParams] = useSearchParams();
  const [tickets, setTickets] = useState([]);
  const [loading, setLoading] = useState(true);
  const [selectedTicket, setSelectedTicket] = useState(null);
@@ -75,7 +75,7 @@ export default function TicketsPage({ isModal }) {
  if (res.ok) {
  const ticket = await res.json();
  toast.success('Anfrage erstellt!');
- navigate('/', { replace: true });
+ setSearchParams({ modal: 'tickets' }, { replace: true });
  fetchTickets();
  selectTicket(ticket.id);
  } else {

@@ -243,4 +243,77 @@ router.get('/dashboard', requireAuth, requireRole('mitarbeiter'), async (req, re
   }
 });
 
+/**
+ * GET /api/stats/leaderboard
+ * Monthly ranking of staff (inhaber+).
+ */
+router.get('/leaderboard', requireAuth, requireRole('inhaber'), async (req, res) => {
+  try {
+    const period = req.query.period || 'current'; // current, last, all
+    let dateFilter = '';
+    
+    if (period === 'current') dateFilter = "AND l.sold_at >= date('now', 'start of month')";
+    else if (period === 'last') dateFilter = "AND l.sold_at >= date('now', 'start of month', '-1 month') AND l.sold_at < date('now', 'start of month')";
+
+    const result = await pool.query(
+      `SELECT u.id, u.username, u.display_name, u.avatar_url, u.role,
+              COUNT(l.id) as sales_count,
+              SUM(l.sold_price) as total_revenue,
+              AVG(l.sold_price) as avg_price
+       FROM users u
+       JOIN listings l ON u.id = l.sold_by
+       WHERE l.status = 'sold' ${dateFilter}
+       GROUP BY u.id
+       ORDER BY sales_count DESC, total_revenue DESC`
+    );
+
+    res.json(result.rows.map(r => ({
+      ...r,
+      sales_count: parseInt(r.sales_count),
+      total_revenue: parseInt(r.total_revenue || 0),
+      avg_price: Math.round(parseFloat(r.avg_price || 0))
+    })));
+  } catch (err) {
+    console.error('Leaderboard error:', err);
+    res.status(500).json({ error: 'Fehler.' });
+  }
+});
+
+/**
+ * GET /api/stats/activity-full
+ * Full activity feed (inhaber+).
+ */
+router.get('/activity-full', requireAuth, requireRole('inhaber'), async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT al.*, u.display_name as user_name, u.avatar_url as user_avatar, u.role as user_role
+       FROM audit_log al
+       LEFT JOIN users u ON al.user_id = u.id
+       ORDER BY al.created_at DESC LIMIT 50`
+    );
+
+    const ACTION_LABELS = {
+      login: 'hat sich angemeldet',
+      logout: 'hat sich abgemeldet',
+      listing_created: 'hat ein Inserat erstellt',
+      listing_sold: 'hat ein Fahrzeug verkauft',
+      listing_updated: 'hat ein Inserat bearbeitet',
+      listing_deleted: 'hat ein Inserat gelöscht',
+      ticket_created: 'hat eine Anfrage gestellt',
+      ticket_message: 'hat eine Nachricht gesendet',
+      ticket_status_changed: 'hat einen Ticket-Status geändert',
+      vault_payout: 'hat eine Auszahlung bestätigt',
+      review_posted: 'hat eine Bewertung abgegeben'
+    };
+
+    res.json(result.rows.map(a => ({
+      ...a,
+      label: ACTION_LABELS[a.action] || a.action,
+      time: a.created_at
+    })));
+  } catch (err) {
+    res.status(500).json({ error: 'Fehler.' });
+  }
+});
+
 export default router;

@@ -85,39 +85,42 @@ export default function ListingsPage() {
  fetchStaff();
  }, [fetchListings, fetchCatalog, fetchStaff]);
 
- // ── Clipboard Paste (Strg+V) — adds to multi-image array ──
- useEffect(() => {
- const handlePaste = (e) => {
- if (!dialogOpen) return;
- const items = e.clipboardData?.items;
- if (!items) return;
- for (const item of items) {
- if (item.type.startsWith('image/')) {
- e.preventDefault();
- setImages(prev => {
- if (prev.length >= MAX_IMAGES) { toast.error(`Maximal ${MAX_IMAGES} Bilder.`); return prev; }
- const file = item.getAsFile();
- const reader = new FileReader();
- reader.onload = (ev) => {
- const newImg = { preview: ev.target.result, base64: ev.target.result, isCover: false };
- setImages(curr => {
- if (curr.length >= MAX_IMAGES) return curr;
- const updated = [...curr, newImg];
- if (updated.filter(i => i.isCover).length === 0 && updated.length > 0) updated[0].isCover = true;
- return updated;
- });
- };
- reader.readAsDataURL(file);
- return prev;
- });
- toast.success('Bild eingefügt!');
- break;
- }
- }
- };
- window.addEventListener('paste', handlePaste);
- return () => window.removeEventListener('paste', handlePaste);
- }, [dialogOpen]);
+  // ── Clipboard Paste (Strg+V) — adds to multi-image array ──
+  useEffect(() => {
+    const handlePaste = (e) => {
+      if (!dialogOpen) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          
+          const file = item.getAsFile();
+          if (!file) continue;
+
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const newImg = { preview: ev.target.result, base64: ev.target.result, isCover: false };
+            setImages(curr => {
+              if (curr.length >= MAX_IMAGES) {
+                // Showing toast inside setImages is not ideal, but we wrap it in setTimeout to avoid render phase side-effects
+                setTimeout(() => toast.error(`Maximal ${MAX_IMAGES} Bilder.`), 0);
+                return curr;
+              }
+              const updated = [...curr, newImg];
+              if (updated.filter(i => i.isCover).length === 0 && updated.length > 0) updated[0].isCover = true;
+              setTimeout(() => toast.success('Bild eingefügt!'), 0);
+              return updated;
+            });
+          };
+          reader.readAsDataURL(file);
+          break;
+        }
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [dialogOpen]);
 
  const openCreate = () => {
  setEditingListing(null);
@@ -250,7 +253,7 @@ export default function ListingsPage() {
  const newImages = images.filter(i => !i.isExisting && i.base64);
 
  if (editingListing) {
- // For edit: upload new images separately
+ // For edit: upload new images separately and then sync order/cover
  try {
  const res = await fetch(`/api/listings/${editingListing.id}`, {
  method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -258,16 +261,34 @@ export default function ListingsPage() {
  });
  if (!res.ok) { const d = await res.json(); toast.error(d.error || 'Fehler.'); return; }
 
+ let updatedImages = [...images];
  // Upload new images
- for (const img of newImages) {
- await fetch(`/api/listings/${editingListing.id}/images`, {
+ for (let i = 0; i < updatedImages.length; i++) {
+ const img = updatedImages[i];
+ if (!img.isExisting && img.base64) {
+ const upRes = await fetch(`/api/listings/${editingListing.id}/images`, {
  method: 'POST', headers: { 'Content-Type': 'application/json' },
  credentials: 'include', body: JSON.stringify({ image_base64: img.base64 }),
+ });
+ if (upRes.ok) {
+ const savedImages = await upRes.json();
+ const newSavedImg = savedImages[savedImages.length - 1];
+ updatedImages[i] = { ...img, id: newSavedImg.id, isExisting: true };
+ }
+ }
+ }
+
+ // Reorder all images
+ const finalIds = updatedImages.filter(i => i.isExisting && i.id).map(i => i.id);
+ if (finalIds.length > 0) {
+ await fetch(`/api/listings/${editingListing.id}/images/reorder`, {
+ method: 'PUT', headers: { 'Content-Type': 'application/json' },
+ credentials: 'include', body: JSON.stringify({ order: finalIds }),
  });
  }
 
  // Set cover
- const coverImg = images.find(i => i.isCover && i.isExisting && i.id);
+ const coverImg = updatedImages.find(i => i.isCover && i.isExisting && i.id);
  if (coverImg) {
  await fetch(`/api/listings/${editingListing.id}/images/${coverImg.id}/cover`, {
  method: 'PUT', credentials: 'include',
@@ -282,6 +303,9 @@ export default function ListingsPage() {
  // For create: send first image as image_base64, rest as images_base64 array
  if (newImages.length > 0) body.image_base64 = newImages[0].base64;
  if (newImages.length > 1) body.images_base64 = JSON.stringify(newImages.slice(1).map(i => i.base64));
+ 
+ let coverIndex = images.findIndex(i => i.isCover);
+ body.cover_index = coverIndex === -1 ? 0 : coverIndex;
 
  try {
  const res = await fetch('/api/listings', {
@@ -699,7 +723,47 @@ export default function ListingsPage() {
 
  <div className="grid grid-cols-2 gap-3">
  <div className="space-y-1.5">
- <Label htmlFor="custom_price">Preis ($)</Label>
+ <Label htmlFor="custom_price" className="flex justify-between">
+  <span>Preis ($)</span>
+  {form.brand && form.model && (() => {
+   const catItem = catalog.find(v => 
+    v.brand.toLowerCase() === form.brand.toLowerCase() && 
+    v.model.toLowerCase() === form.model.toLowerCase()
+   );
+   if (!catItem || !form.custom_price) return null;
+   const price = parseInt(form.custom_price);
+   const min = catItem.min_sell_price;
+   const max = catItem.max_sell_price;
+   
+   let status = 'neutral';
+   let label = 'Unbekannt';
+   let color = 'text-muted-foreground';
+
+   if (price >= min && price <= max) {
+    status = 'good';
+    label = 'Empfohlen';
+    color = 'text-success';
+   } else if (price < min) {
+    status = 'low';
+    label = 'Sehr günstig';
+    color = 'text-blue-400';
+   } else if (price > max * 1.2) {
+    status = 'high';
+    label = 'Sehr teuer';
+    color = 'text-destructive';
+   } else if (price > max) {
+    status = 'warn';
+    label = 'Über Maximum';
+    color = 'text-warning';
+   }
+
+   return (
+    <span className={`text-[10px] font-bold uppercase flex items-center gap-1 ${color}`}>
+     {label} (${min.toLocaleString()}-${max.toLocaleString()})
+    </span>
+   );
+  })()}
+ </Label>
  <Input id="custom_price" type="number" value={form.custom_price} onChange={e => setForm(f => ({ ...f, custom_price: e.target.value }))} placeholder="Manuell" />
  </div>
  <div className="space-y-1.5">

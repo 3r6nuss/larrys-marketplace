@@ -181,7 +181,7 @@ export default function CatalogPage() {
  <img
  src={displayImage}
  alt={`${listing.brand} ${listing.model}`}
- className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-200"
+ className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-200"
  />
  ) : (
  <div className="h-full w-full flex items-center justify-center">

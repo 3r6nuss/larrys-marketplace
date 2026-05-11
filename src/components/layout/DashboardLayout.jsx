@@ -173,7 +173,14 @@ export default function DashboardLayout() {
  <main className="flex-1 overflow-auto p-4 md:p-6">
  <Outlet />
  </main>
- </div>
+
+			{/* ── Footer Disclaimer ── */}
+			<footer className="border-t border-border/50 bg-muted/20 py-4 px-4 md:px-6 text-center text-[10px] text-muted-foreground/60 leading-relaxed shrink-0">
+				<p className="max-w-4xl mx-auto">
+					Listings, pricing, and imagery on this website may be fictional or illustrative and do not represent real-world products, services, or transactions. All content is created for entertainment purposes within a fictional roleplay context. Larry's Marketplace is a fictional business operating within a GTA RP server environment. This is an independent creative presentation and is not affiliated with, sponsored by, or endorsed by Rockstar Games, Take-Two Interactive, or any related entities. All trademarks, game assets, and intellectual property mentioned or depicted belong to their respective owners.
+				</p>
+			</footer>
+		</div>
  <Toaster richColors position="top-right" />
  </TooltipProvider>
  );

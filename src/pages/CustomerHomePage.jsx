@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
  Car, Clock, ArrowRight, Flame, Ticket, Eye, LayoutGrid,
- TrendingUp, Star, LogIn, Sparkles
+ TrendingUp, Star, LogIn, Sparkles, Search
 } from 'lucide-react';
 import VehicleDetailModal from '@/components/VehicleDetailModal';
 import PopupShell from '@/components/PopupShell';
@@ -30,6 +30,7 @@ export default function CustomerHomePage() {
  const [featuredIndex, setFeaturedIndex] = useState(0);
  const [newestIndex, setNewestIndex] = useState(0);
  const [detailId, setDetailId] = useState(null);
+ const [requestStats, setRequestStats] = useState(null);
 
  const getGreeting = () => {
  const h = new Date().getHours();
@@ -49,12 +50,14 @@ export default function CustomerHomePage() {
  ];
  if (user) {
  fetches.push(fetch('/api/stats/customer', { credentials: 'include' }).then(r => r.ok ? r.json() : null));
+ fetches.push(fetch('/api/requests/count', { credentials: 'include' }).then(r => r.ok ? r.json() : null));
  }
- Promise.all(fetches).then(([stats, feat, newst, custStats]) => {
+ Promise.all(fetches).then(([stats, feat, newst, custStats, reqStats]) => {
  setPublicStats(stats);
  setFeatured(feat || []);
  setNewest(newst || []);
  if (custStats) setCustomerStats(custStats);
+ if (reqStats) setRequestStats(reqStats);
  }).catch(console.error).finally(() => setLoading(false));
  }, [user]);
 
@@ -171,7 +174,7 @@ export default function CustomerHomePage() {
  {loading ? <Skeleton className="h-full w-full" /> 
  : newest.length > 0 ? newest.map((l, i) => (
  <div className={`absolute inset-0 transition-opacity duration-200 ${i === (newestIndex % newest.length) ? 'opacity-100 z-10' : 'opacity-0 z-0'}`} key={l.id}>
- {(l.cover_image || l.image_path) ? <img loading='lazy' src={l.cover_image || l.image_path} alt="" className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-150" /> : <div className="h-full w-full bg-gradient-to-br from-muted/50 to-background flex items-center justify-center"><div className="p-4 rounded-full bg-background/50 shadow-inner"><Car className="h-10 w-10 text-muted-foreground/40 group-hover:text-primary/60 group-hover:scale-110 transition-all duration-200" /></div></div>}
+ {(l.cover_image || l.image_path) ? <img loading='lazy' src={l.cover_image || l.image_path} alt="" className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-150" /> : <div className="h-full w-full bg-gradient-to-br from-muted/50 to-background flex items-center justify-center"><div className="p-4 rounded-full bg-background/50 shadow-inner"><Car className="h-10 w-10 text-muted-foreground/40 group-hover:text-primary/60 group-hover:scale-110 transition-all duration-200" /></div></div>}
  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-background/95 via-background/80 to-transparent p-4 pt-16">
  <p className="font-extrabold text-lg truncate leading-tight drop-shadow-md text-foreground">{l.brand} {l.model}</p>
  {l.category && <Badge className="bg-primary/20 text-primary hover:bg-primary/30 border-primary/20 text-[10px] mt-1.5 shadow-sm">{l.category}</Badge>}
@@ -190,7 +193,7 @@ export default function CustomerHomePage() {
  {loading ? <Skeleton className="h-full w-full" /> 
  : featured.length > 0 ? featured.map((l, i) => (
  <div className={`absolute inset-0 transition-opacity duration-200 ${i === (featuredIndex % featured.length) ? 'opacity-100 z-10' : 'opacity-0 z-0'}`} key={l.id}>
- {(l.cover_image || l.image_path) ? <img loading='lazy' src={l.cover_image || l.image_path} alt="" className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-150" /> : <div className="h-full w-full bg-gradient-to-br from-orange-950/20 to-background flex items-center justify-center"><div className="p-4 rounded-full bg-background/50 shadow-inner"><Car className="h-10 w-10 text-orange-500/20 group-hover:text-orange-500/60 group-hover:scale-110 transition-all duration-200" /></div></div>}
+ {(l.cover_image || l.image_path) ? <img loading='lazy' src={l.cover_image || l.image_path} alt="" className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-150" /> : <div className="h-full w-full bg-gradient-to-br from-orange-950/20 to-background flex items-center justify-center"><div className="p-4 rounded-full bg-background/50 shadow-inner"><Car className="h-10 w-10 text-orange-500/20 group-hover:text-orange-500/60 group-hover:scale-110 transition-all duration-200" /></div></div>}
  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-background/95 via-background/80 to-transparent p-4 pt-16">
  <p className="font-extrabold text-lg truncate leading-tight drop-shadow-md text-orange-50">{l.brand} {l.model}</p>
  {l.category && <Badge className="bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border-orange-500/30 text-[10px] mt-1.5 shadow-sm">{l.category}</Badge>}
@@ -204,7 +207,7 @@ export default function CustomerHomePage() {
  {/* 2nd Row: Zuletzt angesehen & Tickets */}
  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
  {/* Zuletzt angesehen (Horizontal List) */}
- <Card className={`bg-card shadow-sm border-border/50 hover:border-chart-5/30 transition-colors hover:shadow-md ${user ? 'md:col-span-3' : 'md:col-span-4'} overflow-hidden relative`}>
+ <Card className={`bg-card shadow-sm border-border/50 hover:border-chart-5/30 transition-colors hover:shadow-md ${user ? 'md:col-span-2' : 'md:col-span-4'} overflow-hidden relative`}>
  <div className="absolute top-0 right-0 w-64 h-full bg-gradient-to-l from-chart-5/5 to-transparent pointer-events-none" />
  <CardHeader className="pb-3 flex flex-row items-center justify-between relative z-10">
  <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
@@ -223,7 +226,7 @@ export default function CustomerHomePage() {
  {recentListings.map(l => (
  <button key={l.id} onClick={() => setDetailId(l.id)} className="flex-shrink-0 w-44 group/item text-left cursor-pointer rounded-xl overflow-hidden border border-border/50 bg-background hover:bg-muted/30 hover:border-chart-5/40 hover:shadow-md transition-all duration-150">
  <div className="h-24 bg-gradient-to-br from-muted/50 to-muted/20 relative overflow-hidden flex items-center justify-center">
- {(l.cover_image || l.image_path) ? <img loading='lazy' src={l.cover_image || l.image_path} alt="" className="h-full w-full object-cover group-hover/item:scale-105 transition-transform duration-200" /> : <Car className="h-8 w-8 text-muted-foreground/20 group-hover/item:text-chart-5/40 group-hover/item:scale-110 transition-all duration-200" />}
+ {(l.cover_image || l.image_path) ? <img loading='lazy' src={l.cover_image || l.image_path} alt="" className="h-full w-full object-contain group-hover/item:scale-105 transition-transform duration-200" /> : <Car className="h-8 w-8 text-muted-foreground/20 group-hover/item:text-chart-5/40 group-hover/item:scale-110 transition-all duration-200" />}
  </div>
  <div className="p-3">
  <p className="text-sm font-bold truncate group-hover/item:text-chart-5 transition-colors">{l.brand} {l.model}</p>
@@ -242,6 +245,15 @@ export default function CustomerHomePage() {
  title="Meine Anfragen" subtitle="Dein Support-Postfach" value={customerStats?.my_open_tickets ?? 0} valueColor="text-warning"
  borderColor="border-warning/30 hover:border-warning/60">
  <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-warning/10 rounded-full blur-2xl group-hover:bg-warning/20 transition-colors duration-200 pointer-events-none" />
+ </Tile>
+ )}
+
+ {/* Fahrzeug anfragen */}
+ {user && (
+ <Tile onClick={() => openModal('requests')} colSpan="md:col-span-1" icon={Search} iconColor="text-chart-2" iconBg="bg-chart-2/20"
+  title="Wunschliste" subtitle="Fahrzeug anfragen" value={requestStats ? (requestStats.found_requests > 0 ? `${requestStats.found_requests} gefunden` : requestStats.open_requests) : 0} valueColor={requestStats?.found_requests > 0 ? 'text-success' : 'text-chart-2'}
+  borderColor="border-chart-2/30 hover:border-chart-2/60">
+  <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-chart-2/10 rounded-full blur-2xl group-hover:bg-chart-2/20 transition-colors duration-200 pointer-events-none" />
  </Tile>
  )}
  </div>

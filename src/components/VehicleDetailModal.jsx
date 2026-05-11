@@ -9,8 +9,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
  ChevronLeft, ChevronRight, Car, MessageSquare,
- Tag, Hash, Calendar, Star, LogIn, Shield, X
+ Tag, Hash, Calendar, Star, LogIn, Shield, X, Calculator, StarHalf
 } from 'lucide-react';
+import FinancingCalculator from './FinancingCalculator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const CATEGORY_COLORS = {
  Sport: 'border-blue-500/50 shadow-blue-500/10',
@@ -56,6 +58,10 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
  const [listing, setListing] = useState(null);
  const [loading, setLoading] = useState(true);
  const [currentImage, setCurrentImage] = useState(0);
+ const [sellerStats, setSellerStats] = useState(null);
+ const [canReview, setCanReview] = useState(false);
+ const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
+ const [showReviewForm, setShowReviewForm] = useState(false);
 
  // Fetch listing detail
  useEffect(() => {
@@ -67,11 +73,19 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
  .then(r => r.ok ? r.json() : null)
  .then(data => {
  setListing(data);
- if (data) addViewed(data.id);
+ if (data) {
+  addViewed(data.id);
+  // Fetch seller reviews
+  fetch(`/api/reviews/seller/${data.seller_id}`).then(r => r.json()).then(setSellerStats);
+  // Check if can review
+  if (user) {
+   fetch(`/api/reviews/check/${data.id}`, { credentials: 'include' }).then(r => r.json()).then(d => setCanReview(d.can_review));
+  }
+ }
  })
  .catch(console.error)
  .finally(() => setLoading(false));
- }, [listingId, open]);
+ }, [listingId, open, user]);
 
  // Keyboard navigation
  useEffect(() => {
@@ -94,7 +108,7 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
  return;
  }
  onClose();
- navigate(`/dashboard/tickets?listing=${listingId}`);
+ navigate(`/kunde?modal=tickets&listing=${listingId}`);
  };
 
  const images = listing?.images || [];
@@ -130,7 +144,7 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
  <img
  src={images[currentImage]?.image_path}
  alt={`${listing.brand} ${listing.model} - Bild ${currentImage + 1}`}
- className="w-full h-full object-cover animate-in fade-in duration-150"
+ className="w-full h-full object-contain animate-in fade-in duration-150"
  key={currentImage}
  />
  ) : (
@@ -211,37 +225,49 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
  {listing.model}
  </h3>
 
- {/* Stats grid */}
- <div className="mt-5 space-y-2.5">
- {listing.category && (
- <StatRow icon={Tag} label="Kategorie">
- <Badge variant="outline" className={`${catAccent} border-current/30`}>
- {listing.category}
- </Badge>
- </StatRow>
- )}
- {listing.plate && (
- <StatRow icon={Hash} label="Kennzeichen">
- <span className="font-mono font-bold text-sm">{listing.plate}</span>
- </StatRow>
- )}
- <StatRow icon={Calendar} label="Gelistet">
- <span className="text-sm">
- {listing.listed_at
- ? new Date(listing.listed_at).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })
- : '—'
- }
- </span>
- </StatRow>
- {listing.status && (
- <StatRow icon={Car} label="Status">
- <Badge variant={listing.status === 'available' ? 'default' : 'secondary'}>
- {listing.status === 'available' ? 'Verfügbar' : listing.status === 'reserved' ? 'Reserviert' : 'Verkauft'}
- </Badge>
- </StatRow>
- )}
- </div>
- </div>
+ <Tabs defaultValue="details" className="mt-6">
+  <TabsList className="grid w-full grid-cols-2">
+   <TabsTrigger value="details">Details</TabsTrigger>
+   <TabsTrigger value="finance">Finanzierung</TabsTrigger>
+  </TabsList>
+  
+  <TabsContent value="details" className="mt-4 space-y-4">
+   <div className="space-y-2.5">
+    {listing.category && (
+     <StatRow icon={Tag} label="Kategorie">
+      <Badge variant="outline" className={`${catAccent} border-current/30`}>
+       {listing.category}
+      </Badge>
+     </StatRow>
+    )}
+    {listing.plate && (
+     <StatRow icon={Hash} label="Kennzeichen">
+      <span className="font-mono font-bold text-sm">{listing.plate}</span>
+     </StatRow>
+    )}
+    <StatRow icon={Calendar} label="Gelistet">
+     <span className="text-sm">
+      {listing.listed_at
+       ? new Date(listing.listed_at).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })
+       : '—'
+      }
+     </span>
+    </StatRow>
+    {listing.status && (
+     <StatRow icon={Car} label="Status">
+      <Badge variant={listing.status === 'available' ? 'default' : 'secondary'}>
+       {listing.status === 'available' ? 'Verfügbar' : listing.status === 'reserved' ? 'Reserviert' : 'Verkauft'}
+      </Badge>
+     </StatRow>
+    )}
+   </div>
+  </TabsContent>
+  
+  <TabsContent value="finance" className="mt-4">
+   <FinancingCalculator price={listing.custom_price || 0} />
+  </TabsContent>
+ </Tabs>
+</div>
 
  {/* Separator */}
  <div className="my-4 border-t border-border/40" />
@@ -258,12 +284,20 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
  </Avatar>
  <div>
  <p className="font-semibold text-sm">{listing.seller_name || 'Unbekannt'}</p>
- {listing.seller_role && (
- <p className="text-[10px] text-muted-foreground flex items-center gap-1">
- <Shield className="h-2.5 w-2.5" />
- {ROLE_LABELS[listing.seller_role] || listing.seller_role}
- </p>
- )}
+ <div className="flex items-center gap-2 mt-0.5">
+  {sellerStats && (
+   <div className="flex items-center gap-1 text-warning bg-warning/10 px-1.5 py-0.5 rounded text-[10px] font-black">
+    <Star className="h-2.5 w-2.5 fill-current" />
+    {sellerStats.average} ({sellerStats.count})
+   </div>
+  )}
+  {listing.seller_role && (
+   <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+    <Shield className="h-2.5 w-2.5" />
+    {ROLE_LABELS[listing.seller_role] || listing.seller_role}
+   </p>
+  )}
+ </div>
  </div>
  </div>
 

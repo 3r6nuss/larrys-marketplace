@@ -1,13 +1,17 @@
-FROM node:20-alpine
+FROM node:20-slim
 
-# Add build tools for native modules (like better-sqlite3)
-RUN apk add --no-cache python3 make g++
+# Install build dependencies for native modules
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY package*.json ./
-# Use npm ci for more reliable builds in CI/Docker
-RUN npm ci --omit=dev
+# Switch back to npm install for better resilience
+RUN npm install --omit=dev
 
 COPY . .
 

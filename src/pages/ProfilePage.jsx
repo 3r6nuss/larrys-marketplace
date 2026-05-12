@@ -4,7 +4,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { LogOut, Shield, Calendar, Clock } from 'lucide-react';
 import { format } from 'date-fns';
+import { useState, useEffect } from 'react';
 import { de } from 'date-fns/locale';
+import { Switch } from '@/components/ui/switch';
+import { toast } from 'sonner';
 
 const ROLE_LABELS = {
  superadmin: 'Superadmin',
@@ -23,7 +26,36 @@ const ROLE_COLORS = {
 };
 
 export default function ProfilePage() {
- const { user, logout } = useAuth();
+ const { user, logout, refetchUser } = useAuth();
+ const [discordDms, setDiscordDms] = useState(user?.discord_notifications === 1);
+
+ useEffect(() => {
+   if (user) {
+     setDiscordDms(user.discord_notifications === 1);
+   }
+ }, [user]);
+
+ const toggleDiscordDms = async (checked) => {
+   setDiscordDms(checked);
+   try {
+     const res = await fetch(`/api/users/${user.id}/settings/discord-dms`, {
+       method: 'PUT',
+       headers: { 'Content-Type': 'application/json' },
+       credentials: 'include',
+       body: JSON.stringify({ enabled: checked ? 1 : 0 })
+     });
+     if (res.ok) {
+       toast.success(checked ? 'Discord PNs aktiviert' : 'Discord PNs deaktiviert');
+       refetchUser();
+     } else {
+       toast.error('Fehler beim Speichern');
+       setDiscordDms(!checked);
+     }
+   } catch (err) {
+     toast.error('Netzwerkfehler');
+     setDiscordDms(!checked);
+   }
+ };
 
  if (!user) return null;
 
@@ -100,6 +132,27 @@ export default function ProfilePage() {
  </CardContent>
  </Card>
  </div>
+
+ {/* Settings */}
+ <Card className="col-span-1 md:col-span-3 bg-card/40 border-border/50 hover:border-primary/30 transition-all">
+ <CardHeader>
+ <CardTitle className="text-lg">Einstellungen</CardTitle>
+ </CardHeader>
+ <CardContent className="space-y-4">
+ <div className="flex items-center justify-between">
+ <div className="space-y-0.5">
+ <p className="font-medium text-sm">Discord Benachrichtigungen (PNs)</p>
+ <p className="text-xs text-muted-foreground">
+ Erhalte Direktnachrichten von unserem Bot bei Ticket-Updates. (Bot muss auf dem gleichen Server sein)
+ </p>
+ </div>
+ <Switch 
+ checked={discordDms} 
+ onCheckedChange={toggleDiscordDms} 
+ />
+ </div>
+ </CardContent>
+ </Card>
 
  {/* Logout */}
  <Card className="col-span-1 md:col-span-3 bg-card/40 border-destructive/20 hover:border-destructive/40 transition-all group cursor-pointer"

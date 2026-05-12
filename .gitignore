@@ -17,6 +17,7 @@ server/node_modules
 server/uploads
 server/package-lock.json
 *.db
+.env
 
 # Editor directories and files
 .vscode/*

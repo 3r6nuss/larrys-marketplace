@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireRole, logAction, checkRateLimit } from '../middleware/auth.js';
 import notificationEvents from '../events.js';
+import { sendDM, createEmbed } from '../discord-bot.js';
 
 const router = Router();
 
@@ -60,6 +61,18 @@ router.post('/', requireAuth, async (req, res) => {
     // Notify staff
     notificationEvents.emit('update');
     
+    // Discord DM an alle Mitarbeiter (vereinfacht: wir holen alle staff mit discord_notifications = 1)
+    try {
+      const staffRes = await pool.query("SELECT discord_id FROM users WHERE role IN ('mitarbeiter', 'inhaber', 'stv_admin', 'superadmin') AND discord_notifications = 1");
+      const embed = createEmbed()
+        .setTitle('🎫 Neue Fahrzeug-Anfrage')
+        .setDescription(`Eine neue Anfrage für Inserat #${listing_id} wurde erstellt.`)
+        .addFields({ name: 'Kunde', value: req.user.display_name, inline: true });
+      for (const st of staffRes.rows) {
+        if (st.discord_id) sendDM(st.discord_id, embed);
+      }
+    } catch (e) { console.error('Discord DM error', e); }
+    
     res.status(201).json(newTicket);
   } catch (err) {
     console.error('Create ticket error:', err);
@@ -72,15 +85,22 @@ router.post('/', requireAuth, async (req, res) => {
  * List tickets visible to current user.
  */
 router.get('/', requireAuth, async (req, res) => {
-  const { status } = req.query;
+  const { status, assigned_to, show_closed } = req.query;
   const isStaff = ['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter'].includes(req.user.role);
 
   let where = isStaff ? '' : 'WHERE t.customer_id = ?';
   let params = isStaff ? [] : [req.user.id];
 
+  if (isStaff && assigned_to && assigned_to !== 'all') {
+    where = where ? `${where} AND (t.assigned_to = ? OR t.assigned_to IS NULL)` : 'WHERE (t.assigned_to = ? OR t.assigned_to IS NULL)';
+    params.push(assigned_to);
+  }
+
   if (status && status !== 'all') {
     where = where ? `${where} AND t.status = ?` : 'WHERE t.status = ?';
     params.push(status);
+  } else if (!show_closed || show_closed === 'false') {
+    where = where ? `${where} AND t.status NOT IN ('completed', 'cancelled')` : "WHERE t.status NOT IN ('completed', 'cancelled')";
   }
 
   try {
@@ -88,7 +108,8 @@ router.get('/', requireAuth, async (req, res) => {
       SELECT t.*,
         l.brand, l.model, l.plate, l.image_path,
         c.display_name as customer_name,
-        a.display_name as assigned_name
+        a.display_name as assigned_name,
+        CASE WHEN ${isStaff ? '1' : '0'} = 1 THEN (t.updated_at > t.last_read_staff) ELSE (t.updated_at > t.last_read_customer) END as is_unread
       FROM tickets t
       LEFT JOIN listings l ON t.listing_id = l.id
       LEFT JOIN users c ON t.customer_id = c.id
@@ -132,6 +153,13 @@ router.get('/:id', requireAuth, async (req, res) => {
     // Only customer or staff can view
     if (!isStaff && ticket.customer_id !== req.user.id) {
       return res.status(403).json({ error: 'Keine Berechtigung.' });
+    }
+
+    // Update last_read timestamp
+    if (isStaff) {
+      await pool.query("UPDATE tickets SET last_read_staff = datetime('now') WHERE id = ?", [ticket.id]);
+    } else {
+      await pool.query("UPDATE tickets SET last_read_customer = datetime('now') WHERE id = ?", [ticket.id]);
     }
 
     // Load messages with sender info
@@ -189,6 +217,23 @@ router.post('/:id/messages', requireAuth, async (req, res) => {
     );
 
     await logAction(req.user.id, 'ticket_message', 'ticket', t.id, {}, req.ip);
+
+    // Discord DM to counterpart
+    try {
+      const targetUserId = isStaff ? t.customer_id : (t.assigned_to || null);
+      if (targetUserId) {
+        const targetRes = await pool.query("SELECT discord_id, discord_notifications FROM users WHERE id = ?", [targetUserId]);
+        if (targetRes.rows.length > 0 && targetRes.rows[0].discord_notifications === 1) {
+          const embed = createEmbed()
+            .setTitle(`💬 Neue Nachricht in Ticket #${t.id}`)
+            .setDescription(`**${req.user.display_name}**: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`)
+            .setURL(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/tickets?modal=tickets`);
+          sendDM(targetRes.rows[0].discord_id, embed);
+        }
+      }
+    } catch (e) { console.error('DM error', e); }
+
+    notificationEvents.emit('update');
     res.status(201).json({ success: true });
   } catch (err) {
     console.error('Send message error:', err);
@@ -261,6 +306,19 @@ router.put('/:id/status', requireAuth, async (req, res) => {
 
     // Notify staff
     notificationEvents.emit('update');
+
+    // Discord DM to customer
+    try {
+      if (ticket.customer_id) {
+        const custRes = await pool.query("SELECT discord_id, discord_notifications FROM users WHERE id = ?", [ticket.customer_id]);
+        if (custRes.rows.length > 0 && custRes.rows[0].discord_notifications === 1) {
+          const embed = createEmbed()
+            .setTitle(`📋 Ticket Status Update`)
+            .setDescription(`Dein Ticket #${req.params.id} ist nun: **${status}**`);
+          sendDM(custRes.rows[0].discord_id, embed);
+        }
+      }
+    } catch (e) { console.error('DM error', e); }
 
     res.json({ success: true, status }); // Return final status
   } catch (err) {

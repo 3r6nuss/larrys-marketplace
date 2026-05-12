@@ -196,7 +196,8 @@ export async function migrate() {
         blocked_by    INTEGER,
         blocked_at    TEXT,
         created_at    TEXT DEFAULT CURRENT_TIMESTAMP,
-        last_login    TEXT DEFAULT CURRENT_TIMESTAMP
+        last_login    TEXT DEFAULT CURRENT_TIMESTAMP,
+        discord_notifications INTEGER DEFAULT 1
       )
     `);
 
@@ -294,11 +295,19 @@ export async function migrate() {
         customer_id     INTEGER NOT NULL,
         assigned_to     INTEGER,
         status          TEXT DEFAULT 'open',
+        priority        TEXT DEFAULT 'normal',
         created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at      TEXT DEFAULT CURRENT_TIMESTAMP,
-        closed_at       TEXT
+        closed_at       TEXT,
+        last_read_customer TEXT DEFAULT CURRENT_TIMESTAMP,
+        last_read_staff    TEXT DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    try { await client.query(`ALTER TABLE users ADD COLUMN discord_notifications INTEGER DEFAULT 1`); } catch (e) {}
+    try { await client.query(`ALTER TABLE tickets ADD COLUMN priority TEXT DEFAULT 'normal'`); } catch (e) {}
+    try { await client.query(`ALTER TABLE tickets ADD COLUMN last_read_customer TEXT DEFAULT CURRENT_TIMESTAMP`); } catch (e) {}
+    try { await client.query(`ALTER TABLE tickets ADD COLUMN last_read_staff TEXT DEFAULT CURRENT_TIMESTAMP`); } catch (e) {}
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS ticket_messages (

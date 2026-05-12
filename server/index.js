@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -18,6 +19,7 @@ import logsRoutes from './routes/logs.js';
 import statsRoutes from './routes/stats.js';
 import reviewsRoutes from './routes/reviews.js';
 import requestsRoutes from './routes/requests.js';
+import './discord-bot.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3002');

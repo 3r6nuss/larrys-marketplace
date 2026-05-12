@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import {
  Ticket, MessageSquare, Send, ArrowLeft, Car, Clock,
- CheckCircle2, XCircle, Loader2, AlertTriangle
+ CheckCircle2, XCircle, Loader2, AlertTriangle, User, Flame
 } from 'lucide-react';
 
 const STATUS_MAP = {
@@ -22,6 +22,14 @@ const STATUS_MAP = {
  reserved: { label: 'Reserviert', class: 'bg-chart-5/15 text-chart-5 border-chart-5/30', icon: Car },
  completed: { label: 'Abgeschlossen', class: 'bg-success/15 text-success border-success/30', icon: CheckCircle2 },
  cancelled: { label: 'Storniert', class: 'bg-muted text-muted-foreground border-border', icon: XCircle },
+};
+
+const playNotificationSound = () => {
+  try {
+    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+    audio.volume = 0.3;
+    audio.play().catch(() => {});
+  } catch (e) {}
 };
 
 export default function TicketsPage({ isModal }) {
@@ -36,23 +44,39 @@ export default function TicketsPage({ isModal }) {
  const [message, setMessage] = useState('');
  const [sending, setSending] = useState(false);
  const [statusFilter, setStatusFilter] = useState('all');
+ const [assignedToFilter, setAssignedToFilter] = useState(user?.id?.toString() || 'all');
+ const [showClosed, setShowClosed] = useState(false);
+ const [staffUsers, setStaffUsers] = useState([]);
  const [haltStop, setHaltStop] = useState(false);
  const messagesEndRef = useRef(null);
+ const previousMessagesCountRef = useRef(0);
 
  // Check if coming from catalog to create a new ticket
  const newTicketListingId = searchParams.get('listing');
 
+ useEffect(() => {
+   if (hasRole('mitarbeiter')) {
+     fetch('/api/users/staff').then(r => r.json()).then(data => {
+       if (Array.isArray(data)) setStaffUsers(data);
+     }).catch(() => {});
+   }
+ }, [hasRole]);
+
  const fetchTickets = useCallback(async () => {
  try {
- const params = statusFilter !== 'all' ? `?status=${statusFilter}` : '';
- const res = await fetch(`/api/tickets${params}`, { credentials: 'include' });
+ const params = new URLSearchParams();
+ if (statusFilter !== 'all') params.append('status', statusFilter);
+ if (hasRole('mitarbeiter') && assignedToFilter !== 'all') params.append('assigned_to', assignedToFilter);
+ if (showClosed) params.append('show_closed', 'true');
+ 
+ const res = await fetch(`/api/tickets?${params.toString()}`, { credentials: 'include' });
  if (res.ok) setTickets(await res.json());
  } catch (err) {
  console.error(err);
  } finally {
  setLoading(false);
  }
- }, [statusFilter]);
+ }, [statusFilter, assignedToFilter, showClosed, hasRole]);
 
  useEffect(() => { fetchTickets(); }, [fetchTickets]);
 
@@ -112,8 +136,18 @@ export default function TicketsPage({ isModal }) {
 
  // Auto-scroll to bottom on new messages
  useEffect(() => {
- messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
- }, [ticketDetail?.messages]);
+   if (ticketDetail?.messages) {
+     const currentCount = ticketDetail.messages.length;
+     if (currentCount > previousMessagesCountRef.current && previousMessagesCountRef.current !== 0) {
+       const lastMsg = ticketDetail.messages[currentCount - 1];
+       if (lastMsg.sender_id !== user.id) {
+         playNotificationSound();
+       }
+     }
+     previousMessagesCountRef.current = currentCount;
+     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+   }
+ }, [ticketDetail?.messages, user.id]);
 
  const sendMessage = async () => {
  if (!message.trim() || !selectedTicket) return;
@@ -185,19 +219,46 @@ export default function TicketsPage({ isModal }) {
  <div className={`flex gap-4 ${isModal ? 'h-full min-h-[60vh]' : 'h-[calc(100vh-8rem)]'}`}>
  {/* Ticket List */}
  <div className={`${selectedTicket ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-80 lg:w-96 shrink-0`}>
- <div className="flex items-center justify-between mb-3">
+ <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
  <h1 className="text-xl font-bold tracking-tight">Tickets</h1>
+ <div className="flex gap-2">
+ {hasRole('mitarbeiter') && (
+   <Select value={assignedToFilter} onValueChange={setAssignedToFilter}>
+     <SelectTrigger className="w-[130px] h-8 text-xs">
+       <SelectValue placeholder="Mitarbeiter" />
+     </SelectTrigger>
+     <SelectContent>
+       <SelectItem value="all">Alle Tickets</SelectItem>
+       <SelectItem value={user?.id?.toString() || 'me'}>Meine Tickets</SelectItem>
+       {staffUsers.filter(u => u.id !== user.id).map(st => (
+         <SelectItem key={st.id} value={st.id.toString()}>{st.display_name}</SelectItem>
+       ))}
+     </SelectContent>
+   </Select>
+ )}
  <Select value={statusFilter} onValueChange={setStatusFilter}>
- <SelectTrigger className="w-[140px] h-8 text-xs">
+ <SelectTrigger className="w-[110px] h-8 text-xs">
  <SelectValue />
  </SelectTrigger>
  <SelectContent>
- <SelectItem value="all">Alle</SelectItem>
+ <SelectItem value="all">Status: Alle</SelectItem>
  <SelectItem value="open">Offen</SelectItem>
  <SelectItem value="in_progress">In Bearbeitung</SelectItem>
  <SelectItem value="completed">Abgeschlossen</SelectItem>
  </SelectContent>
  </Select>
+ </div>
+ </div>
+ 
+ <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border text-xs px-1">
+   <input 
+     type="checkbox" 
+     id="showClosed" 
+     checked={showClosed} 
+     onChange={(e) => setShowClosed(e.target.checked)}
+     className="rounded border-border text-primary focus:ring-primary/50 cursor-pointer"
+   />
+   <label htmlFor="showClosed" className="cursor-pointer text-muted-foreground select-none">Geschlossene anzeigen</label>
  </div>
 
  <ScrollArea className="flex-1">
@@ -226,8 +287,10 @@ export default function TicketsPage({ isModal }) {
  }`}
  >
  <div className="flex items-start justify-between gap-2">
- <div className="min-w-0 flex-1">
- <p className="font-medium text-sm truncate">
+ <div className="min-w-0 flex-1 relative">
+ {t.is_unread ? <span className="absolute -left-3 top-1.5 w-2 h-2 rounded-full bg-primary animate-pulse" /> : null}
+ <p className="font-medium text-sm truncate flex items-center gap-1">
+ {t.priority === 'urgent' && <Flame className="h-3 w-3 text-red-500" />}
  {t.brand} {t.model}
  </p>
  <p className="text-xs text-muted-foreground truncate mt-0.5">

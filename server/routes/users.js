@@ -88,4 +88,22 @@ router.put('/:id/unblock', requireAuth, requireRole('inhaber'), async (req, res)
   }
 });
 
+/** PUT /api/users/:id/settings/discord-dms */
+router.put('/:id/settings/discord-dms', requireAuth, async (req, res) => {
+  const targetId = parseInt(req.params.id);
+  const { enabled } = req.body;
+
+  if (targetId !== req.user.id) {
+    return res.status(403).json({ error: 'Du kannst nur deine eigenen Einstellungen ändern.' });
+  }
+
+  try {
+    await pool.query('UPDATE users SET discord_notifications = ? WHERE id = ?', [enabled ? 1 : 0, targetId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Settings update error:', err);
+    res.status(500).json({ error: 'Fehler.' });
+  }
+});
+
 export default router;

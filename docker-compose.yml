@@ -36,6 +36,10 @@ services:
       DB_PASSWORD: larrys_secret
       PORT: 3002
       CORS_ORIGIN: "*"
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8081}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
     volumes:
       - uploads:/app/uploads
     ports:
@@ -48,7 +52,7 @@ services:
     depends_on:
       - larrys-api
     ports:
-      - "8080:80"
+      - "8081:80"
     restart: always
 
 volumes:

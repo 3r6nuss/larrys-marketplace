@@ -231,7 +231,7 @@ router.get('/me', async (req, res) => {
     res.json({ user: result.rows[0] });
   } catch (err) {
     console.error('Auth me error:', err);
-    res.status(500).json({ error: 'Server-Fehler.' });
+    res.status(500).json({ error: err.message, stack: err.stack });
   }
 });
 

@@ -31,6 +31,15 @@ if (DB_HOST) {
         // Convert SQLite datetime('now') to PostgreSQL NOW()
         pgSql = pgSql.replace(/datetime\('now'\)/gi, 'NOW()');
         
+        // Convert SQLite datetime('now', '-' || ? || ' seconds')
+        pgSql = pgSql.replace(/datetime\('now',\s*'-'\s*\|\|\s*\?\s*\|\|\s*' seconds'\)/gi, "(NOW() - (? || ' seconds')::interval)");
+        
+        // Convert SQLite date('now', 'start of month') to date_trunc('month', CURRENT_DATE)
+        pgSql = pgSql.replace(/date\('now',\s*'start of month'\)/gi, "date_trunc('month', CURRENT_DATE)");
+        
+        // Convert SQLite date('now', 'start of month', '-1 month') to date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
+        pgSql = pgSql.replace(/date\('now',\s*'start of month',\s*'-1 month'\)/gi, "(date_trunc('month', CURRENT_DATE) - INTERVAL '1 month')");
+
         // Convert SQLite ? placeholders to PostgreSQL $1, $2
         if (params && params.length > 0) {
           let i = 1;

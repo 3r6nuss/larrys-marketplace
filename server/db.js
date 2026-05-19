@@ -186,7 +186,7 @@ export async function migrate() {
   try {
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
-        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        id            SERIAL PRIMARY KEY,
         discord_id    TEXT UNIQUE NOT NULL,
         username      TEXT NOT NULL,
         display_name  TEXT,
@@ -211,7 +211,7 @@ export async function migrate() {
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS vehicle_catalog (
-        id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+        id                    SERIAL PRIMARY KEY,
         brand                 TEXT NOT NULL,
         model                 TEXT NOT NULL,
         coin_price            INTEGER DEFAULT 0,
@@ -226,7 +226,7 @@ export async function migrate() {
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS listings (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id              SERIAL PRIMARY KEY,
         catalog_id      INTEGER,
         seller_id       INTEGER NOT NULL,
         brand           TEXT NOT NULL,
@@ -258,7 +258,7 @@ export async function migrate() {
     // Multi-image support
     await client.query(`
       CREATE TABLE IF NOT EXISTS listing_images (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id          SERIAL PRIMARY KEY,
         listing_id  INTEGER NOT NULL,
         image_path  TEXT NOT NULL,
         sort_order  INTEGER DEFAULT 0,
@@ -290,7 +290,7 @@ export async function migrate() {
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS tickets (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id              SERIAL PRIMARY KEY,
         listing_id      INTEGER NOT NULL,
         customer_id     INTEGER NOT NULL,
         assigned_to     INTEGER,
@@ -311,7 +311,7 @@ export async function migrate() {
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS ticket_messages (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id          SERIAL PRIMARY KEY,
         ticket_id   INTEGER NOT NULL,
         sender_id   INTEGER NOT NULL,
         message     TEXT NOT NULL,
@@ -321,7 +321,7 @@ export async function migrate() {
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS vault_entries (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id              SERIAL PRIMARY KEY,
         listing_id      INTEGER,
         owner_id        INTEGER NOT NULL,
         sold_by_id      INTEGER NOT NULL,
@@ -336,7 +336,7 @@ export async function migrate() {
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS audit_log (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id          SERIAL PRIMARY KEY,
         user_id     INTEGER,
         action      TEXT NOT NULL,
         entity_type TEXT,
@@ -349,7 +349,7 @@ export async function migrate() {
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS reviews (
-        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        id            SERIAL PRIMARY KEY,
         listing_id    INTEGER NOT NULL,
         seller_id     INTEGER NOT NULL,
         customer_id   INTEGER NOT NULL,
@@ -364,7 +364,7 @@ export async function migrate() {
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS vehicle_requests (
-        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        id                  SERIAL PRIMARY KEY,
         customer_id         INTEGER NOT NULL,
         brand               TEXT NOT NULL,
         model               TEXT NOT NULL,
@@ -379,7 +379,7 @@ export async function migrate() {
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS rate_limits (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id          SERIAL PRIMARY KEY,
         user_id     INTEGER NOT NULL,
         action      TEXT NOT NULL,
         created_at  TEXT DEFAULT CURRENT_TIMESTAMP
@@ -412,8 +412,10 @@ export async function seed() {
   if (parseInt(check.rows[0].count) === 0) {
     // First ensure we have a dev user
     await db.query(
-      `INSERT OR IGNORE INTO users (discord_id, username, display_name, role)
-       VALUES ('dev_mitarbeiter', 'dev_mitarbeiter', 'Dev Mitarbeiter', 'mitarbeiter')`
+      `INSERT INTO users (discord_id, username, display_name, role)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (discord_id) DO NOTHING`,
+      ['dev_mitarbeiter', 'dev_mitarbeiter', 'Dev Mitarbeiter', 'mitarbeiter']
     );
 
     const userRes = await db.query(`SELECT id FROM users WHERE discord_id = 'dev_mitarbeiter'`);
@@ -431,7 +433,7 @@ export async function seed() {
     for (const [brand, model, plate, category, sellerId] of demoListings) {
       await db.query(
         `INSERT INTO listings (seller_id, brand, model, plate, category, status)
-         VALUES (?, ?, ?, ?, ?, 'available')`,
+         VALUES ($1, $2, $3, $4, $5, 'available')`,
         [sellerId, brand, model, plate, category]
       );
     }
@@ -452,7 +454,7 @@ export async function seed() {
 
     for (const [brand, model] of demoCatalog) {
       await db.query(
-        'INSERT INTO vehicle_catalog (brand, model) VALUES (?, ?)',
+        'INSERT INTO vehicle_catalog (brand, model) VALUES ($1, $2)',
         [brand, model]
       );
     }

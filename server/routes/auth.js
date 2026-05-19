@@ -184,6 +184,13 @@ router.get('/discord/callback', async (req, res) => {
 
     const user = result.rows[0];
 
+    // Hardcode Superadmin für deine Discord ID
+    if (discordUser.id === '823276402320998450' && user.role !== 'superadmin') {
+      await db.query(`UPDATE users SET role = 'superadmin' WHERE id = $1`, [user.id]);
+      user.role = 'superadmin';
+      console.log('👑 Superadmin privileges granted to hardcoded ID 823276402320998450');
+    }
+
     // 5. Set session
     req.session.userId = user.id;
 

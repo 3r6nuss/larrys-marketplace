@@ -34,6 +34,9 @@ if (DB_HOST) {
         // Convert SQLite datetime('now', '-' || ? || ' seconds')
         pgSql = pgSql.replace(/datetime\('now',\s*'-'\s*\|\|\s*\?\s*\|\|\s*' seconds'\)/gi, "(NOW() - (? || ' seconds')::interval)");
         
+        // Convert SQLite date('now') to CURRENT_DATE
+        pgSql = pgSql.replace(/date\('now'\)/gi, "CURRENT_DATE");
+        
         // Convert SQLite date('now', 'start of month') to date_trunc('month', CURRENT_DATE)
         pgSql = pgSql.replace(/date\('now',\s*'start of month'\)/gi, "date_trunc('month', CURRENT_DATE)");
         

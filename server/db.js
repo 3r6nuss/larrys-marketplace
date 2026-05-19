@@ -26,8 +26,18 @@ if (DB_HOST) {
 
   db = {
     query: async (sql, params) => {
-      // Convert $1, $2 placeholder syntax (PG) — already in PG format, pass through
-      return pool.query(sql, params);
+      let pgSql = sql;
+      if (pgSql) {
+        // Convert SQLite datetime('now') to PostgreSQL NOW()
+        pgSql = pgSql.replace(/datetime\('now'\)/gi, 'NOW()');
+        
+        // Convert SQLite ? placeholders to PostgreSQL $1, $2
+        if (params && params.length > 0) {
+          let i = 1;
+          pgSql = pgSql.replace(/\?/g, () => `$${i++}`);
+        }
+      }
+      return pool.query(pgSql, params);
     },
     connect: () => pool.connect(),
     pool,

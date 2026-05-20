@@ -198,24 +198,6 @@ export default function WorkspacePage() {
  </CardContent>
  </Card>
 
- {/* Admin Tiles */}
- {hasRole('inhaber') && (
-  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-    <Tile onClick={() => openModal('leaderboard')} icon={Trophy} iconColor="text-warning" iconBg="bg-warning/10" title="Leaderboard" borderColor="border-warning/20 hover:border-warning/40">
-      <div className="text-sm font-bold text-warning mt-1 flex items-center gap-1">Öffnen <ArrowRight className="h-3 w-3" /></div>
-    </Tile>
-    <Tile onClick={() => openModal('activity')} icon={History} iconColor="text-indigo-400" iconBg="bg-indigo-400/10" title="Aktivitäts-Feed" borderColor="border-indigo-400/20 hover:border-indigo-400/40">
-      <div className="text-sm font-bold text-indigo-400 mt-1 flex items-center gap-1">Öffnen <ArrowRight className="h-3 w-3" /></div>
-    </Tile>
-    <Tile onClick={() => openModal('stats')} icon={BarChart3} iconColor="text-chart-2" iconBg="bg-chart-2/10" title="Statistiken" borderColor="border-chart-2/20 hover:border-chart-2/40">
-      <div className="text-sm font-bold text-chart-2 mt-1 flex items-center gap-1">Öffnen <ArrowRight className="h-3 w-3" /></div>
-    </Tile>
-    <Tile onClick={() => openModal('users')} icon={Users} iconColor="text-chart-4" iconBg="bg-chart-4/10" title="Benutzerverwaltung" borderColor="border-chart-4/20 hover:border-chart-4/40">
-      <div className="text-sm font-bold text-chart-4 mt-1 flex items-center gap-1">Öffnen <ArrowRight className="h-3 w-3" /></div>
-    </Tile>
-  </div>
- )}
-
  {/* Notizblock */}
  <Card className="bg-card/60 border-border/50 hover:shadow-lg transition-all">
  <CardHeader className="pb-3">

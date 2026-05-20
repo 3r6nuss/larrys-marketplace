@@ -128,7 +128,7 @@ export default function CatalogAdminPage() {
  <p className="text-2xl font-bold">{loading ? '—' : stats?.brands ?? 0}</p>
  <p className="text-sm text-muted-foreground">Marken</p>
  </CardContent></Card>
- {hasRole('superadmin') && (
+ {hasRole('inhaber') && (
  <Card className="border-destructive/30"><CardContent className="pt-4">
  <Button variant="destructive" size="sm" onClick={handleClear} disabled={clearing} className="gap-2 cursor-pointer w-full">
  <Trash2 className="h-4 w-4" /> {clearing ? 'Wird geleert…' : 'Katalog leeren'}

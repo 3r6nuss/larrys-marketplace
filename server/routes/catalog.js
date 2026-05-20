@@ -89,7 +89,7 @@ router.get('/stats', requireAuth, requireRole('mitarbeiter'), async (req, res) =
  * Import CSV (superadmin only).
  * Format: Marke;Modell;Coinpreis;Min-$-Preis;Max-$-Preis;Zwischenhändlerpreis;Min-Verkauf;Max-Verkauf
  */
-router.post('/import', requireAuth, requireRole('superadmin'), async (req, res) => {
+router.post('/import', requireAuth, requireRole('inhaber'), async (req, res) => {
   const { csv_data, replace_existing } = req.body;
   if (!csv_data) return res.status(400).json({ error: 'CSV-Daten erforderlich.' });
 
@@ -141,7 +141,7 @@ router.post('/import', requireAuth, requireRole('superadmin'), async (req, res) 
  * DELETE /api/catalog
  * Clear all catalog entries (superadmin only).
  */
-router.delete('/', requireAuth, requireRole('superadmin'), async (req, res) => {
+router.delete('/', requireAuth, requireRole('inhaber'), async (req, res) => {
   try {
     await pool.query('DELETE FROM vehicle_catalog');
     await logAction(req.user.id, 'catalog_cleared', 'system', null, {}, req.ip);

@@ -74,7 +74,7 @@ export default function AppSidebar() {
  { title: 'Statistiken', url: '/admin/stats', icon: BarChart3, minRole: 'inhaber' },
  { title: 'Benutzerverwaltung', url: '/admin/users', icon: Users, minRole: 'inhaber' },
  { title: 'Audit-Logs', url: '/admin/logs', icon: ScrollText, minRole: 'stv_admin' },
- { title: 'Katalog-Import', url: '/admin/catalog', icon: Database, minRole: 'superadmin' },
+ { title: 'Katalog-Import', url: '/admin/catalog', icon: Database, minRole: 'inhaber' },
  ];
 
  const visibleMain = mainNav.filter(item => item.public || hasRole(item.minRole));

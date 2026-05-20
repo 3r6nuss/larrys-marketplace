@@ -431,59 +431,7 @@ export async function migrate() {
 }
 
 export async function seed() {
-  // Seed some demo listings if empty
-  const check = await db.query('SELECT COUNT(*) as count FROM listings');
-  if (parseInt(check.rows[0].count) === 0) {
-    // First ensure we have a dev user
-    await db.query(
-      `INSERT INTO users (discord_id, username, display_name, role)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (discord_id) DO NOTHING`,
-      ['dev_mitarbeiter', 'dev_mitarbeiter', 'Dev Mitarbeiter', 'mitarbeiter']
-    );
-
-    const userRes = await db.query(`SELECT id FROM users WHERE discord_id = 'dev_mitarbeiter'`);
-    const userId = userRes.rows[0]?.id || 1;
-
-    const demoListings = [
-      ['Pegassi', 'Toros CTX', 'GEB 385', 'SUV', userId],
-      ['Obey', 'Tailgater S', 'JTS 349', 'Sport', userId],
-      ['Vapid', 'Dominator ASP', 'LRY 001', 'Muscle', userId],
-      ['Grotti', 'Itali RSX', 'RX 999', 'Sport', userId],
-      ['Lampadati', 'Corsita', 'CRS 420', 'Sport', userId],
-      ['Benefactor', 'Schafter V12', 'BNF 112', 'Limousine', userId],
-    ];
-
-    for (const [brand, model, plate, category, sellerId] of demoListings) {
-      await db.query(
-        `INSERT INTO listings (seller_id, brand, model, plate, category, status)
-         VALUES ($1, $2, $3, $4, $5, 'available')`,
-        [sellerId, brand, model, plate, category]
-      );
-    }
-    console.log('✅ Seeded demo listings');
-  }
-
-  // Seed catalog if empty
-  const catalogCheck = await db.query('SELECT COUNT(*) as count FROM vehicle_catalog');
-  if (parseInt(catalogCheck.rows[0].count) === 0) {
-    const demoCatalog = [
-      ['Pegassi', 'Toros CTX'], ['Pegassi', 'Zentorno'], ['Pegassi', 'Tempesta'],
-      ['Obey', 'Tailgater S'], ['Obey', '10F'], ['Obey', '8F Drafter'],
-      ['Vapid', 'Dominator ASP'], ['Vapid', 'Stanier'], ['Vapid', 'Sandking XL'],
-      ['Grotti', 'Itali RSX'], ['Grotti', 'Turismo Omaggio'], ['Grotti', 'Stinger GT'],
-      ['Lampadati', 'Corsita'], ['Lampadati', 'Casco'],
-      ['Benefactor', 'Schafter V12'], ['Benefactor', 'Krieger'], ['Benefactor', 'LM87']
-    ];
-
-    for (const [brand, model] of demoCatalog) {
-      await db.query(
-        'INSERT INTO vehicle_catalog (brand, model) VALUES ($1, $2)',
-        [brand, model]
-      );
-    }
-    console.log('✅ Seeded vehicle catalog');
-  }
+  console.log('ℹ️ Database seeding is disabled for a clean production setup.');
 }
 
 export default db;

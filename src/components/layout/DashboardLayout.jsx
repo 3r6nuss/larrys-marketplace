@@ -36,33 +36,59 @@ const ROLE_COLORS = {
  kunde: 'text-muted-foreground',
 };
 
-const DEV_ROLES = [
- { role: 'superadmin', label: 'Superadmin', icon: Crown, color: 'text-red-400' },
- { role: 'inhaber', label: 'Geschäftsinhaber', icon: Briefcase, color: 'text-yellow-400' },
- { role: 'mitarbeiter', name: '1', label: 'Mitarbeiter 1', icon: Users, color: 'text-cyan-400' },
- { role: 'mitarbeiter', name: '2', label: 'Mitarbeiter 2', icon: Users, color: 'text-cyan-400' },
- { role: 'kunde', name: '1', label: 'Kunde 1', icon: UserCircle, color: 'text-gray-400' },
- { role: 'kunde', name: '2', label: 'Kunde 2', icon: UserCircle, color: 'text-gray-400' },
-];
+const DEV_ICONS = {
+  superadmin: Crown,
+  stv_admin: Shield,
+  inhaber: Briefcase,
+  mitarbeiter: Users,
+  kunde: UserCircle,
+};
+
+const DEV_COLORS = {
+  superadmin: 'text-red-400',
+  stv_admin: 'text-orange-400',
+  inhaber: 'text-yellow-400',
+  mitarbeiter: 'text-cyan-400',
+  kunde: 'text-gray-400',
+};
 
 export default function DashboardLayout() {
- const { user, login, logout } = useAuth();
- const { openTickets } = useNotifications();
- const [, setSearchParams] = useSearchParams();
- const [isDevMode, setIsDevMode] = useState(false);
+  const { user, login, logout } = useAuth();
+  const { openTickets } = useNotifications();
+  const [, setSearchParams] = useSearchParams();
+  const [virtualUsers, setVirtualUsers] = useState([]);
 
- useEffect(() => {
- fetch('/api/auth/dev-users')
- .then(r => r.json())
- .then(data => { if (data.dev_mode) setIsDevMode(true); })
- .catch(() => {});
- }, []);
+  const canSwitch = user && (['superadmin', 'stv_admin', 'inhaber'].includes(user.role) || user.is_impersonating);
 
- const switchDevAccount = (role, name) => {
- const params = new URLSearchParams({ role });
- if (name) params.set('name', name);
- window.location.href = `/api/auth/dev-login?${params}`;
- };
+  useEffect(() => {
+    if (canSwitch) {
+      fetch('/api/auth/virtual-users', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : { users: [] })
+        .then(data => setVirtualUsers(data.users || []))
+        .catch(() => setVirtualUsers([]));
+    } else {
+      setVirtualUsers([]);
+    }
+  }, [user, canSwitch]);
+
+  const switchAccount = async (targetUserId) => {
+    try {
+      const r = await fetch('/api/auth/impersonate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUserId }),
+        credentials: 'include'
+      });
+      if (r.ok) {
+        window.location.reload();
+      } else {
+        const errData = await r.json();
+        alert(errData.error || 'Fehler beim Accountwechsel.');
+      }
+    } catch {
+      alert('Fehler beim Accountwechsel.');
+    }
+  };
 
  return (
  <TooltipProvider>
@@ -125,34 +151,47 @@ export default function DashboardLayout() {
  <User className="mr-2 h-4 w-4" />
  Profil
  </DropdownMenuItem>
- {isDevMode && (
- <>
- <DropdownMenuSeparator />
- <DropdownMenuSub>
- <DropdownMenuSubTrigger className="cursor-pointer">
- <Shield className="mr-2 h-4 w-4" />
- Konto wechseln
- </DropdownMenuSubTrigger>
- <DropdownMenuSubContent>
- {DEV_ROLES.map(({ role, name, label, icon: Icon, color }) => {
- const devUsername = `dev_${role}${name ? '_' + name : ''}`;
- const isActive = user.username === devUsername;
- return (
- <DropdownMenuItem
- key={`${role}_${name || 'default'}`}
- onClick={() => switchDevAccount(role, name)}
- className={`cursor-pointer ${isActive ? 'bg-muted' : ''}`}
- >
- <Icon className={`mr-2 h-4 w-4 ${color}`} />
- {label}
- {isActive && <Badge variant="outline" className="ml-auto text-[9px] px-1">aktiv</Badge>}
- </DropdownMenuItem>
- );
- })}
- </DropdownMenuSubContent>
- </DropdownMenuSub>
- </>
- )}
+  {user.is_impersonating && (
+    <>
+      <DropdownMenuItem onClick={() => switchAccount(null)} className="text-warning focus:text-warning cursor-pointer font-semibold">
+        <Shield className="mr-2 h-4 w-4" />
+        Zurück zum Hauptaccount
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+    </>
+  )}
+  {canSwitch && virtualUsers.length > 0 && (
+    <>
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger className="cursor-pointer">
+          <Shield className="mr-2 h-4 w-4 text-muted-foreground" />
+          Konto wechseln
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="max-h-60 overflow-y-auto">
+          {virtualUsers.map((v) => {
+            const Icon = DEV_ICONS[v.role] || UserCircle;
+            const color = DEV_COLORS[v.role] || 'text-muted-foreground';
+            const isActive = user.id === v.id;
+            return (
+              <DropdownMenuItem
+                key={v.id}
+                onClick={() => switchAccount(v.id)}
+                className={`cursor-pointer ${isActive ? 'bg-muted' : ''}`}
+              >
+                <Icon className={`mr-2 h-4 w-4 ${color}`} />
+                <div className="flex flex-col">
+                  <span className="font-medium text-xs">{v.display_name}</span>
+                  <span className="text-[10px] text-muted-foreground">@{v.username} ({v.role})</span>
+                </div>
+                {isActive && <Badge variant="outline" className="ml-auto text-[8px] px-1.5 py-0.5">aktiv</Badge>}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+      <DropdownMenuSeparator />
+    </>
+  )}
  <DropdownMenuSeparator />
  <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive cursor-pointer">
  <LogOut className="mr-2 h-4 w-4" />

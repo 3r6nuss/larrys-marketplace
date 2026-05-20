@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Search, MoreHorizontal, Shield, Ban, CheckCircle2, Users, UserCheck, UserX } from 'lucide-react';
+import { Search, MoreHorizontal, Shield, Ban, CheckCircle2, Users, UserCheck, UserX, Plus, Trash2, ArrowLeftRight } from 'lucide-react';
 
 const LABELS = { superadmin:'Superadmin', stv_admin:'Stv. Admin', inhaber:'Geschäftsinhaber', mitarbeiter:'Mitarbeiter', kunde:'Kunde' };
 const COLORS = { superadmin:'bg-red-500/15 text-red-400 border-red-500/30', stv_admin:'bg-orange-500/15 text-orange-400 border-orange-500/30', inhaber:'bg-yellow-500/15 text-yellow-400 border-yellow-500/30', mitarbeiter:'bg-primary/15 text-primary border-primary/30', kunde:'bg-muted text-muted-foreground border-border' };
@@ -24,10 +24,41 @@ export default function UsersPage() {
  const [roleDialog, setRoleDialog] = useState(null);
  const [selectedRole, setSelectedRole] = useState('');
 
+ // State für virtuelle Accounts
+ const [virtualUsers, setVirtualUsers] = useState([]);
+ const [vLoading, setVLoading] = useState(false);
+ const [newUsername, setNewUsername] = useState('');
+ const [newDisplayName, setNewDisplayName] = useState('');
+ const [newRole, setNewRole] = useState('kunde');
+
+ const canManageVirtual = me && (['superadmin', 'stv_admin', 'inhaber'].includes(me.role) || me.is_impersonating);
+
  const fetchUsers = useCallback(async () => {
  try { const r = await fetch('/api/users',{credentials:'include'}); if(r.ok) setUsers(await r.json()); } catch(e){console.error(e);} finally{setLoading(false);}
  },[]);
- useEffect(()=>{fetchUsers();},[fetchUsers]);
+
+ const fetchVirtualUsers = useCallback(async () => {
+ if (!canManageVirtual) return;
+ setVLoading(true);
+ try {
+   const r = await fetch('/api/auth/virtual-users', { credentials: 'include' });
+   if (r.ok) {
+     const data = await r.json();
+     setVirtualUsers(data.users || []);
+   }
+ } catch (e) {
+   console.error(e);
+ } finally {
+   setVLoading(false);
+ }
+ }, [canManageVirtual]);
+
+ useEffect(()=>{
+   fetchUsers();
+   if (canManageVirtual) {
+     fetchVirtualUsers();
+   }
+ },[fetchUsers, fetchVirtualUsers, canManageVirtual]);
 
  const changeRole = async () => {
  if(!roleDialog||!selectedRole) return;
@@ -37,6 +68,73 @@ export default function UsersPage() {
  const toggleBlock = async (id, blocked) => {
  if(!blocked && !confirm('Benutzer sperren?')) return;
  try { const r = await fetch(`/api/users/${id}/${blocked?'unblock':'block'}`,{method:'PUT',credentials:'include'}); if(r.ok){toast.success(blocked?'Entsperrt.':'Gesperrt.');fetchUsers();}else{const d=await r.json();toast.error(d.error);} } catch(e){toast.error('Fehler.');}
+ };
+
+ const createVirtualUser = async (e) => {
+   e.preventDefault();
+   if (!newUsername || !newDisplayName || !newRole) {
+     toast.error('Bitte alle Felder ausfüllen.');
+     return;
+   }
+   try {
+     const r = await fetch('/api/auth/virtual-users', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({ username: newUsername, display_name: newDisplayName, role: newRole }),
+       credentials: 'include'
+     });
+     if (r.ok) {
+       toast.success('Virtueller Account erstellt.');
+       setNewUsername('');
+       setNewDisplayName('');
+       setNewRole('kunde');
+       fetchVirtualUsers();
+     } else {
+       const d = await r.json();
+       toast.error(d.error || 'Fehler beim Erstellen.');
+     }
+   } catch (e) {
+     toast.error('Fehler beim Erstellen.');
+   }
+ };
+
+ const deleteVirtualUser = async (id) => {
+   if (!confirm('Diesen virtuellen Account wirklich löschen?')) return;
+   try {
+     const r = await fetch(`/api/auth/virtual-users/${id}`, {
+       method: 'DELETE',
+       credentials: 'include'
+     });
+     if (r.ok) {
+       toast.success('Gelöscht.');
+       fetchVirtualUsers();
+     } else {
+       const d = await r.json();
+       toast.error(d.error || 'Fehler beim Löschen.');
+     }
+   } catch (e) {
+     toast.error('Fehler beim Löschen.');
+   }
+ };
+
+ const switchAccount = async (targetUserId) => {
+   try {
+     const r = await fetch('/api/auth/impersonate', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({ targetUserId }),
+       credentials: 'include'
+     });
+     if (r.ok) {
+       toast.success('Konto gewechselt.');
+       window.location.reload();
+     } else {
+       const d = await r.json();
+       toast.error(d.error || 'Fehler beim Accountwechsel.');
+     }
+   } catch (e) {
+     toast.error('Fehler beim Accountwechsel.');
+   }
  };
 
  const filtered = users.filter(u => !search || u.display_name?.toLowerCase().includes(search.toLowerCase()) || u.username?.toLowerCase().includes(search.toLowerCase()));
@@ -121,10 +219,143 @@ export default function UsersPage() {
  </Table>
  </div>
  )}
- </CardContent>
- </Card>
+  </CardContent>
+  </Card>
 
- <Dialog open={!!roleDialog} onOpenChange={()=>setRoleDialog(null)}>
+  {/* Sektion für virtuelle Accounts (Entwickler / Testen) */}
+  {canManageVirtual && (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Linke Spalte: Formular zum Erstellen */}
+      <Card className="bg-card/40 border-border/50">
+        <CardHeader>
+          <CardTitle className="text-lg font-bold flex items-center gap-2">
+            <Plus className="h-5 w-5 text-primary" />
+            Virtuellen Account erstellen
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={createVirtualUser} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Benutzername</label>
+              <Input
+                placeholder="z.B. testkunde"
+                value={newUsername}
+                onChange={e => setNewUsername(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Anzeigename</label>
+              <Input
+                placeholder="z.B. Herr Tester"
+                value={newDisplayName}
+                onChange={e => setNewDisplayName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Rolle</label>
+              <Select value={newRole} onValueChange={setNewRole}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Rolle wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="kunde">Kunde</SelectItem>
+                  <SelectItem value="mitarbeiter">Mitarbeiter</SelectItem>
+                  <SelectItem value="inhaber">Inhaber</SelectItem>
+                  <SelectItem value="stv_admin">Stv. Admin</SelectItem>
+                  <SelectItem value="superadmin">Superadmin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button type="submit" className="w-full cursor-pointer mt-2">
+              <Plus className="mr-2 h-4 w-4" /> Account erstellen
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Rechte Spalte: Liste der virtuellen Accounts */}
+      <Card className="bg-card/40 border-border/50 md:col-span-2 overflow-hidden">
+        <CardHeader>
+          <CardTitle className="text-lg font-bold flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary" />
+            Virtuelle Accounts
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {vLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+          ) : virtualUsers.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-lg">
+              Keine virtuellen Accounts vorhanden. Erstelle einen links!
+            </div>
+          ) : (
+            <div className="rounded-lg border border-border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Benutzer</TableHead>
+                    <TableHead>Rolle</TableHead>
+                    <TableHead>Aktionen</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {virtualUsers.map((vu) => {
+                    const isActive = me?.id === vu.id;
+                    return (
+                      <TableRow key={vu.id} className={isActive ? 'bg-primary/5' : ''}>
+                        <TableCell>
+                          <div>
+                            <p className="font-semibold text-sm">
+                              {vu.display_name} {isActive && <span className="text-xs text-primary font-medium ml-1">(aktiv)</span>}
+                            </p>
+                            <p className="text-xs text-muted-foreground">@{vu.username}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={COLORS[vu.role] || COLORS.kunde}>
+                            {LABELS[vu.role] || vu.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={isActive}
+                              onClick={() => switchAccount(vu.id)}
+                              className="cursor-pointer text-xs"
+                            >
+                              <ArrowLeftRight className="mr-1.5 h-3.5 w-3.5" /> Wechseln
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              disabled={isActive}
+                              onClick={() => deleteVirtualUser(vu.id)}
+                              className="cursor-pointer text-xs animate-pulse hover:animate-none"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )}
+
+  <Dialog open={!!roleDialog} onOpenChange={()=>setRoleDialog(null)}>
  <DialogContent className="max-w-sm"><DialogHeader><DialogTitle>Rolle ändern</DialogTitle><DialogDescription>Neue Rolle für {roleDialog?.display_name}.</DialogDescription></DialogHeader>
  <Select value={selectedRole} onValueChange={setSelectedRole}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{assignable.map(r=><SelectItem key={r} value={r}>{LABELS[r]}</SelectItem>)}</SelectContent></Select>
  <DialogFooter><Button variant="outline" onClick={()=>setRoleDialog(null)} className="cursor-pointer">Abbrechen</Button><Button onClick={changeRole} className="cursor-pointer">Speichern</Button></DialogFooter>

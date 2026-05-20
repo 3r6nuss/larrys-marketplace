@@ -9,18 +9,40 @@ const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
 const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || 'http://localhost:5173/api/auth/discord/callback';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-// Dev mode: no Discord credentials configured
-const IS_DEV_MODE = !DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET;
+// Hilfsfunktion zur Überprüfung, ob der Benutzer ein berechtigter Admin (Superadmin, Stv. Admin, Inhaber) ist
+const isAllowedAdmin = async (req) => {
+  if (!req.session?.userId) return false;
+  
+  // Aktuelle Benutzerrolle prüfen
+  const res = await db.query('SELECT role FROM users WHERE id = ?', [req.session.userId]);
+  if (res.rows.length === 0) return false;
+  const currentRole = res.rows[0].role;
+  
+  if (['superadmin', 'stv_admin', 'inhaber'].includes(currentRole)) {
+    return true;
+  }
+  
+  // Wenn der Benutzer gerade impersoniert, prüfen wir die Original-Rolle
+  if (req.session.originalUserId) {
+    const origRes = await db.query('SELECT role FROM users WHERE id = ?', [req.session.originalUserId]);
+    if (origRes.rows.length > 0) {
+      const origRole = origRes.rows[0].role;
+      if (['superadmin', 'stv_admin', 'inhaber'].includes(origRole)) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+};
 
 /**
  * GET /api/auth/discord
- * Redirects user to Discord OAuth2 authorization page.
- * In dev mode: redirects to dev login instead.
+ * Leitet den Benutzer zur Discord OAuth2 Autorisierungsseite weiter.
  */
 router.get('/discord', (req, res) => {
-  if (IS_DEV_MODE) {
-    // In dev mode, redirect to dev login endpoint instead
-    return res.redirect('/api/auth/dev-login?role=superadmin');
+  if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET) {
+    return res.status(500).json({ error: 'Discord OAuth ist auf diesem Server nicht konfiguriert.' });
   }
 
   const params = new URLSearchParams({
@@ -34,81 +56,165 @@ router.get('/discord', (req, res) => {
 });
 
 /**
- * GET /api/auth/dev-login
- * Development-only login. Creates/uses a dev user and sets session.
- * Accepts ?role= parameter to test different roles.
- * Available roles: superadmin, stv_admin, inhaber, mitarbeiter, kunde
+ * GET /api/auth/virtual-users
+ * Listet alle verfügbaren virtuellen Accounts auf (Nur für Superadmin, Stv. Admin, Inhaber).
  */
-router.get('/dev-login', async (req, res) => {
-  if (!IS_DEV_MODE) {
-    return res.status(403).json({ error: 'Dev-Login nur im Entwicklungsmodus verfügbar.' });
+router.get('/virtual-users', async (req, res) => {
+  if (!(await isAllowedAdmin(req))) {
+    return res.status(403).json({ error: 'Keine Berechtigung.' });
   }
 
-  const role = req.query.role || 'superadmin';
-  const name = req.query.name || null; // optional: e.g. "1", "2" for multiple accounts per role
-  const validRoles = ['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter', 'kunde'];
-  const selectedRole = validRoles.includes(role) ? role : 'superadmin';
-
-  const ROLE_NAMES = {
-    superadmin: 'Dev Superadmin',
-    stv_admin: 'Dev Stv. Admin',
-    inhaber: 'Dev Geschäftsinhaber',
-    mitarbeiter: 'Dev Mitarbeiter',
-    kunde: 'Dev Kunde',
-  };
-
   try {
-    const suffix = name ? `_${name}` : '';
-    const discordId = `dev_${selectedRole}${suffix}`;
-    const displayName = name ? `${ROLE_NAMES[selectedRole]} ${name}` : ROLE_NAMES[selectedRole];
-    const username = `dev_${selectedRole}${suffix}`;
-
-    // Upsert dev user — SQLite-compatible approach
-    await db.query(
-      `INSERT OR IGNORE INTO users (discord_id, username, display_name, role) VALUES (?, ?, ?, ?)`,
-      [discordId, username, displayName, selectedRole]
-    );
-    await db.query(
-      `UPDATE users SET display_name = ?, role = ?, last_login = datetime('now') WHERE discord_id = ?`,
-      [displayName, selectedRole, discordId]
-    );
     const result = await db.query(
-      `SELECT * FROM users WHERE discord_id = ?`,
-      [discordId]
+      `SELECT id, username, display_name, role, last_login FROM users WHERE discord_id LIKE 'virtual_%' ORDER BY id DESC`
     );
-
-    const user = result.rows[0];
-    req.session.userId = user.id;
-
-    await logAction(user.id, 'dev_login', 'user', user.id, { role: selectedRole, name }, req.ip);
-
-    console.log(`🔓 Dev login: ${displayName} (${selectedRole})`);
-    res.redirect(`${FRONTEND_URL}/auth/callback`);
+    res.json({ success: true, users: result.rows });
   } catch (err) {
-    console.error('Dev login error:', err);
-    res.redirect(`${FRONTEND_URL}/auth/callback?error=dev_login_failed`);
+    console.error('Failed to list virtual users:', err);
+    res.status(500).json({ error: 'Fehler beim Auflisten der virtuellen Accounts.' });
   }
 });
 
 /**
- * GET /api/auth/dev-users
- * Lists available dev login roles (dev mode only).
+ * POST /api/auth/virtual-users
+ * Erstellt einen neuen virtuellen Account (Nur für Superadmin, Stv. Admin, Inhaber).
  */
-router.get('/dev-users', (req, res) => {
-  if (!IS_DEV_MODE) {
-    return res.status(403).json({ error: 'Nur im Entwicklungsmodus.' });
+router.post('/virtual-users', async (req, res) => {
+  if (!(await isAllowedAdmin(req))) {
+    return res.status(403).json({ error: 'Keine Berechtigung.' });
   }
 
-  res.json({
-    dev_mode: true,
-    roles: [
-      { role: 'superadmin', label: 'Superadmin', url: '/api/auth/dev-login?role=superadmin' },
-      { role: 'stv_admin', label: 'Stv. Admin', url: '/api/auth/dev-login?role=stv_admin' },
-      { role: 'inhaber', label: 'Geschäftsinhaber', url: '/api/auth/dev-login?role=inhaber' },
-      { role: 'mitarbeiter', label: 'Mitarbeiter', url: '/api/auth/dev-login?role=mitarbeiter' },
-      { role: 'kunde', label: 'Kunde', url: '/api/auth/dev-login?role=kunde' },
-    ],
-  });
+  const { username, display_name, role } = req.body;
+  if (!username || !display_name || !role) {
+    return res.status(400).json({ error: 'Fehlende Felder: username, display_name und role sind erforderlich.' });
+  }
+
+  const validRoles = ['kunde', 'mitarbeiter', 'inhaber', 'stv_admin', 'superadmin'];
+  if (!validRoles.includes(role)) {
+    return res.status(400).json({ error: 'Ungültige Rolle.' });
+  }
+
+  try {
+    const sanitizedUsername = username.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const discordId = `virtual_${sanitizedUsername}_${Date.now()}`;
+    
+    // Prüfen, ob der Benutzername bereits existiert
+    const checkUser = await db.query('SELECT id FROM users WHERE username = ?', [username]);
+    if (checkUser.rows.length > 0) {
+      return res.status(400).json({ error: 'Benutzername existiert bereits.' });
+    }
+
+    const insertResult = await db.query(
+      `INSERT INTO users (discord_id, username, display_name, role) VALUES (?, ?, ?, ?) RETURNING *`,
+      [discordId, username, display_name, role]
+    );
+
+    const newUser = insertResult.rows[0];
+    res.status(201).json({ success: true, user: newUser });
+  } catch (err) {
+    console.error('Failed to create virtual user:', err);
+    res.status(500).json({ error: 'Fehler beim Erstellen des virtuellen Accounts.' });
+  }
+});
+
+/**
+ * DELETE /api/auth/virtual-users/:id
+ * Löscht einen virtuellen Account (Nur für Superadmin, Stv. Admin, Inhaber).
+ */
+router.delete('/virtual-users/:id', async (req, res) => {
+  if (!(await isAllowedAdmin(req))) {
+    return res.status(403).json({ error: 'Keine Berechtigung.' });
+  }
+
+  const { id } = req.params;
+
+  try {
+    // Aktive Session darf sich nicht selbst löschen
+    if (parseInt(id) === req.session.userId) {
+      return res.status(400).json({ error: 'Der aktuell aktive Account kann nicht gelöscht werden.' });
+    }
+
+    // Sicherstellen, dass es ein virtueller User ist
+    const checkUser = await db.query('SELECT discord_id FROM users WHERE id = ?', [id]);
+    if (checkUser.rows.length === 0) {
+      return res.status(404).json({ error: 'Benutzer nicht gefunden.' });
+    }
+
+    if (!checkUser.rows[0].discord_id.startsWith('virtual_')) {
+      return res.status(403).json({ error: 'Nur virtuelle Accounts können gelöscht werden.' });
+    }
+
+    await db.query('DELETE FROM users WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to delete virtual user:', err);
+    res.status(500).json({ error: 'Fehler beim Löschen des virtuellen Accounts.' });
+  }
+});
+
+/**
+ * POST /api/auth/impersonate
+ * Ermöglicht das Einloggen in einen virtuellen Account bzw. das Zurückwechseln.
+ */
+router.post('/impersonate', async (req, res) => {
+  if (!req.session?.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+
+  // Aktuellen Benutzer holen
+  const currentUserRes = await db.query('SELECT * FROM users WHERE id = ?', [req.session.userId]);
+  if (currentUserRes.rows.length === 0) {
+    return res.status(401).json({ error: 'Benutzer nicht gefunden.' });
+  }
+  const currentUser = currentUserRes.rows[0];
+
+  let realAdminId = null;
+
+  // Prüfen, ob der aktuelle Benutzer ein Admin ist oder ursprünglich ein Admin war
+  if (['superadmin', 'stv_admin', 'inhaber'].includes(currentUser.role)) {
+    realAdminId = currentUser.id;
+  } else if (req.session.originalUserId) {
+    const originalUserRes = await db.query('SELECT * FROM users WHERE id = ?', [req.session.originalUserId]);
+    if (originalUserRes.rows.length > 0 && ['superadmin', 'stv_admin', 'inhaber'].includes(originalUserRes.rows[0].role)) {
+      realAdminId = req.session.originalUserId;
+    }
+  }
+
+  if (!realAdminId) {
+    return res.status(403).json({ error: 'Nur Superadmin, Stv. Admin und Inhaber dürfen Accounts wechseln.' });
+  }
+
+  const { targetUserId } = req.body;
+
+  // Fall 1: Zurückwechseln zum echten Admin-Account
+  if (!targetUserId || targetUserId === realAdminId) {
+    req.session.userId = realAdminId;
+    delete req.session.originalUserId;
+    const adminUser = (await db.query('SELECT * FROM users WHERE id = ?', [realAdminId])).rows[0];
+    await logAction(realAdminId, 'switch_back_admin', 'user', realAdminId, {}, req.ip);
+    return res.json({ success: true, user: adminUser });
+  }
+
+  // Fall 2: In einen virtuellen Account wechseln
+  const targetUserRes = await db.query('SELECT * FROM users WHERE id = ?', [targetUserId]);
+  if (targetUserRes.rows.length === 0) {
+    return res.status(404).json({ error: 'Zielbenutzer nicht gefunden.' });
+  }
+  const targetUser = targetUserRes.rows[0];
+
+  // Verifizieren, dass der Ziel-Account virtuell ist
+  if (!targetUser.discord_id || !targetUser.discord_id.startsWith('virtual_')) {
+    return res.status(403).json({ error: 'Es kann nur in virtuelle Accounts gewechselt werden.' });
+  }
+
+  // Impersonierung durchführen
+  req.session.originalUserId = realAdminId;
+  req.session.userId = targetUser.id;
+
+  await logAction(realAdminId, 'impersonate_user', 'user', targetUser.id, { target_role: targetUser.role }, req.ip);
+
+  console.log(`👤 Impersonation gestartet: ${currentUser.display_name} -> ${targetUser.display_name} (${targetUser.role})`);
+  res.json({ success: true, user: targetUser });
 });
 
 /**
@@ -123,7 +229,7 @@ router.get('/discord/callback', async (req, res) => {
     return res.redirect(`${FRONTEND_URL}/auth/callback?error=discord_denied`);
   }
 
-  if (IS_DEV_MODE) {
+  if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET) {
     return res.redirect(`${FRONTEND_URL}/auth/callback?error=no_discord_config`);
   }
 
@@ -228,7 +334,12 @@ router.get('/me', async (req, res) => {
       return res.status(401).json({ user: null });
     }
 
-    res.json({ user: result.rows[0] });
+    const userData = {
+      ...result.rows[0],
+      is_impersonating: !!req.session.originalUserId
+    };
+
+    res.json({ user: userData });
   } catch (err) {
     console.error('Auth me error:', err);
     res.status(500).json({ error: err.message, stack: err.stack });

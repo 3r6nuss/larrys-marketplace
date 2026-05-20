@@ -54,6 +54,7 @@ function App() {
  <Route path="/" element={<HomeRedirect />} />
  <Route path="/kunde" element={<CustomerHomePage />} />
  <Route path="/mitarbeiter" element={<WorkspacePage />} />
+ <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
  <Route path="/admin/stats" element={<StatsPage />} />
  <Route path="/admin/users" element={<UsersPage />} />
  <Route path="/admin/logs" element={<AuditLogsPage />} />

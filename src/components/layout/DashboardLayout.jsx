@@ -8,32 +8,34 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
- DropdownMenu,
- DropdownMenuContent,
- DropdownMenuItem,
- DropdownMenuSeparator,
- DropdownMenuTrigger,
- DropdownMenuSub,
- DropdownMenuSubTrigger,
- DropdownMenuSubContent,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import { LogOut, User, Ticket, ChevronDown, Shield, Crown, Briefcase, Users, UserCircle } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import AppSidebar from '@/components/layout/AppSidebar';
 
 const ROLE_LABELS = {
- superadmin: 'Superadmin',
- stv_admin: 'Stv. Admin',
- inhaber: 'Geschäftsinhaber',
- mitarbeiter: 'Mitarbeiter',
- kunde: 'Kunde',
+  superadmin: 'Superadmin',
+  stv_admin: 'Stv. Admin',
+  inhaber: 'Geschäftsinhaber',
+  mitarbeiter: 'Mitarbeiter',
+  kunde: 'Kunde',
 };
 
 const ROLE_COLORS = {
- superadmin: 'text-red-400',
- stv_admin: 'text-orange-400',
- inhaber: 'text-yellow-400',
- mitarbeiter: 'text-primary',
- kunde: 'text-muted-foreground',
+  superadmin: 'text-red-400',
+  stv_admin: 'text-orange-400',
+  inhaber: 'text-yellow-400',
+  mitarbeiter: 'text-primary',
+  kunde: 'text-muted-foreground',
 };
 
 const DEV_ICONS = {
@@ -90,137 +92,143 @@ export default function DashboardLayout() {
     }
   };
 
- return (
- <TooltipProvider>
- <div className="min-h-screen bg-background flex flex-col">
- {/* ── Slim Topbar ── */}
- <header className="sticky top-0 z-50 h-14 border-b border-border/50 bg-background/80 px-4 md:px-6 flex items-center justify-between shrink-0">
- {/* Left: Logo */}
- <Link to="/" className="flex items-center gap-2.5 group">
- <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm shrink-0 shadow-md shadow-primary/20 group-hover:shadow-primary/40 transition-shadow">
- L
- </div>
- <div className="flex flex-col leading-none">
- <span className="text-sm font-bold tracking-tight">Larry's</span>
- <span className="text-[10px] text-muted-foreground">Marketplace</span>
- </div>
- </Link>
-
- {/* Right: User area */}
- <div className="flex items-center gap-3">
- {/* Ticket Badge (quick access) */}
- {user && openTickets > 0 && (
- <button
- onClick={() => setSearchParams({ modal: 'tickets' })}
- className="relative p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
- title="Offene Tickets"
- >
- <Ticket className="h-4 w-4 text-muted-foreground" />
- <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">
- {openTickets > 99 ? '99+' : openTickets}
- </span>
- </button>
- )}
-
- {user ? (
- <DropdownMenu>
- <DropdownMenuTrigger asChild>
- <div className="flex items-center gap-2 p-1.5 pr-3 rounded-full hover:bg-muted/50 transition-colors cursor-pointer border border-transparent hover:border-border/50">
- <Avatar className="h-7 w-7 border border-border">
- <AvatarImage src={user.avatar_url} alt={user.display_name} />
- <AvatarFallback className="text-[10px] bg-primary/20 text-primary">
- {user.display_name?.charAt(0)?.toUpperCase() || '?'}
- </AvatarFallback>
- </Avatar>
- <span className="text-sm font-medium hidden sm:inline max-w-[100px] truncate">
- {user.display_name || user.username}
- </span>
- <ChevronDown className="h-3 w-3 text-muted-foreground hidden sm:block" />
- </div>
- </DropdownMenuTrigger>
- <DropdownMenuContent align="end" className="w-56">
- <div className="px-2 py-1.5">
- <p className="text-sm font-medium">{user.display_name}</p>
- <p className="text-xs text-muted-foreground">@{user.username}</p>
- <p className={`text-xs mt-0.5 ${ROLE_COLORS[user.role] || ''}`}>
- {ROLE_LABELS[user.role] || user.role}
- </p>
- </div>
- <DropdownMenuSeparator />
- <DropdownMenuItem onClick={() => setSearchParams({ modal: 'profile' })} className="cursor-pointer">
- <User className="mr-2 h-4 w-4" />
- Profil
- </DropdownMenuItem>
-  {user.is_impersonating && (
-    <>
-      <DropdownMenuItem onClick={() => switchAccount(null)} className="text-warning focus:text-warning cursor-pointer font-semibold">
-        <Shield className="mr-2 h-4 w-4" />
-        Zurück zum Hauptaccount
-      </DropdownMenuItem>
-      <DropdownMenuSeparator />
-    </>
-  )}
-  {canSwitch && virtualUsers.length > 0 && (
-    <>
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger className="cursor-pointer">
-          <Shield className="mr-2 h-4 w-4 text-muted-foreground" />
-          Konto wechseln
-        </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="max-h-60 overflow-y-auto">
-          {virtualUsers.map((v) => {
-            const Icon = DEV_ICONS[v.role] || UserCircle;
-            const color = DEV_COLORS[v.role] || 'text-muted-foreground';
-            const isActive = user.id === v.id;
-            return (
-              <DropdownMenuItem
-                key={v.id}
-                onClick={() => switchAccount(v.id)}
-                className={`cursor-pointer ${isActive ? 'bg-muted' : ''}`}
-              >
-                <Icon className={`mr-2 h-4 w-4 ${color}`} />
-                <div className="flex flex-col">
-                  <span className="font-medium text-xs">{v.display_name}</span>
-                  <span className="text-[10px] text-muted-foreground">@{v.username} ({v.role})</span>
+  return (
+    <TooltipProvider>
+      <SidebarProvider>
+        <AppSidebar />
+        <div className="min-h-screen bg-background flex flex-col flex-1 min-w-0">
+          {/* ── Slim Topbar ── */}
+          <header className="sticky top-0 z-50 h-14 border-b border-border/50 bg-background/80 backdrop-blur-sm px-4 md:px-6 flex items-center justify-between shrink-0">
+            {/* Left: Sidebar trigger + Logo */}
+            <div className="flex items-center gap-3">
+              <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
+              <Link to="/" className="flex items-center gap-2.5 group">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm shrink-0 shadow-md shadow-primary/20 group-hover:shadow-primary/40 transition-shadow">
+                  L
                 </div>
-                {isActive && <Badge variant="outline" className="ml-auto text-[8px] px-1.5 py-0.5">aktiv</Badge>}
-              </DropdownMenuItem>
-            );
-          })}
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
-      <DropdownMenuSeparator />
-    </>
-  )}
- <DropdownMenuSeparator />
- <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive cursor-pointer">
- <LogOut className="mr-2 h-4 w-4" />
- Abmelden
- </DropdownMenuItem>
- </DropdownMenuContent>
- </DropdownMenu>
- ) : (
- <Button onClick={login} size="sm" className="gap-2 cursor-pointer text-xs h-8">
- <LogOut className="h-3.5 w-3.5" />
- Anmelden
- </Button>
- )}
- </div>
- </header>
+                <div className="flex flex-col leading-none hidden sm:flex">
+                  <span className="text-sm font-bold tracking-tight">Larry's</span>
+                  <span className="text-[10px] text-muted-foreground">Marketplace</span>
+                </div>
+              </Link>
+            </div>
 
- {/* ── Main Content ── */}
- <main className="flex-1 overflow-auto p-4 md:p-6">
- <Outlet />
- </main>
+            {/* Right: User area */}
+            <div className="flex items-center gap-3">
+              {/* Ticket Badge (quick access) */}
+              {user && openTickets > 0 && (
+                <button
+                  onClick={() => setSearchParams({ modal: 'tickets' })}
+                  className="relative p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                  title="Offene Tickets"
+                >
+                  <Ticket className="h-4 w-4 text-muted-foreground" />
+                  <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">
+                    {openTickets > 99 ? '99+' : openTickets}
+                  </span>
+                </button>
+              )}
 
-			{/* ── Footer Disclaimer ── */}
-			<footer className="border-t border-border/50 bg-muted/20 py-4 px-4 md:px-6 text-center text-[10px] text-muted-foreground/60 leading-relaxed shrink-0">
-				<p className="max-w-4xl mx-auto">
-					Listings, pricing, and imagery on this website may be fictional or illustrative and do not represent real-world products, services, or transactions. All content is created for entertainment purposes within a fictional roleplay context. Larry's Marketplace is a fictional business operating within a GTA RP server environment. This is an independent creative presentation and is not affiliated with, sponsored by, or endorsed by Rockstar Games, Take-Two Interactive, or any related entities. All trademarks, game assets, and intellectual property mentioned or depicted belong to their respective owners.
-				</p>
-			</footer>
-		</div>
- <Toaster richColors position="top-right" />
- </TooltipProvider>
- );
+              {user ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <div className="flex items-center gap-2 p-1.5 pr-3 rounded-full hover:bg-muted/50 transition-colors cursor-pointer border border-transparent hover:border-border/50">
+                      <Avatar className="h-7 w-7 border border-border">
+                        <AvatarImage src={user.avatar_url} alt={user.display_name} />
+                        <AvatarFallback className="text-[10px] bg-primary/20 text-primary">
+                          {user.display_name?.charAt(0)?.toUpperCase() || '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm font-medium hidden sm:inline max-w-[100px] truncate">
+                        {user.display_name || user.username}
+                      </span>
+                      <ChevronDown className="h-3 w-3 text-muted-foreground hidden sm:block" />
+                    </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <div className="px-2 py-1.5">
+                      <p className="text-sm font-medium">{user.display_name}</p>
+                      <p className="text-xs text-muted-foreground">@{user.username}</p>
+                      <p className={`text-xs mt-0.5 ${ROLE_COLORS[user.role] || ''}`}>
+                        {ROLE_LABELS[user.role] || user.role}
+                      </p>
+                    </div>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setSearchParams({ modal: 'profile' })} className="cursor-pointer">
+                      <User className="mr-2 h-4 w-4" />
+                      Profil
+                    </DropdownMenuItem>
+                    {user.is_impersonating && (
+                      <>
+                        <DropdownMenuItem onClick={() => switchAccount(null)} className="text-warning focus:text-warning cursor-pointer font-semibold">
+                          <Shield className="mr-2 h-4 w-4" />
+                          Zurück zum Hauptaccount
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
+                    {canSwitch && virtualUsers.length > 0 && (
+                      <>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger className="cursor-pointer">
+                            <Shield className="mr-2 h-4 w-4 text-muted-foreground" />
+                            Konto wechseln
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent className="max-h-60 overflow-y-auto">
+                            {virtualUsers.map((v) => {
+                              const Icon = DEV_ICONS[v.role] || UserCircle;
+                              const color = DEV_COLORS[v.role] || 'text-muted-foreground';
+                              const isActive = user.id === v.id;
+                              return (
+                                <DropdownMenuItem
+                                  key={v.id}
+                                  onClick={() => switchAccount(v.id)}
+                                  className={`cursor-pointer ${isActive ? 'bg-muted' : ''}`}
+                                >
+                                  <Icon className={`mr-2 h-4 w-4 ${color}`} />
+                                  <div className="flex flex-col">
+                                    <span className="font-medium text-xs">{v.display_name}</span>
+                                    <span className="text-[10px] text-muted-foreground">@{v.username} ({v.role})</span>
+                                  </div>
+                                  {isActive && <Badge variant="outline" className="ml-auto text-[8px] px-1.5 py-0.5">aktiv</Badge>}
+                                </DropdownMenuItem>
+                              );
+                            })}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive cursor-pointer">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Abmelden
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Button onClick={login} size="sm" className="gap-2 cursor-pointer text-xs h-8">
+                  <LogOut className="h-3.5 w-3.5" />
+                  Anmelden
+                </Button>
+              )}
+            </div>
+          </header>
+
+          {/* ── Main Content ── */}
+          <main className="flex-1 overflow-auto p-4 md:p-6">
+            <Outlet />
+          </main>
+
+          {/* ── Footer Disclaimer ── */}
+          <footer className="border-t border-border/50 bg-muted/20 py-4 px-4 md:px-6 text-center text-[10px] text-muted-foreground/60 leading-relaxed shrink-0">
+            <p className="max-w-4xl mx-auto">
+              Listings, pricing, and imagery on this website may be fictional or illustrative and do not represent real-world products, services, or transactions. All content is created for entertainment purposes within a fictional roleplay context. Larry's Marketplace is a fictional business operating within a GTA RP server environment. This is an independent creative presentation and is not affiliated with, sponsored by, or endorsed by Rockstar Games, Take-Two Interactive, or any related entities. All trademarks, game assets, and intellectual property mentioned or depicted belong to their respective owners.
+            </p>
+          </footer>
+        </div>
+        <Toaster richColors position="top-right" />
+      </SidebarProvider>
+    </TooltipProvider>
+  );
 }

@@ -9,6 +9,10 @@ const LoginPage = lazy(() => import('@/pages/LoginPage'));
 const AuthCallback = lazy(() => import('@/pages/AuthCallback'));
 const CustomerHomePage = lazy(() => import('@/pages/CustomerHomePage'));
 const WorkspacePage = lazy(() => import('@/pages/WorkspacePage'));
+const StatsPage = lazy(() => import('@/pages/StatsPage'));
+const UsersPage = lazy(() => import('@/pages/UsersPage'));
+const AuditLogsPage = lazy(() => import('@/pages/AuditLogsPage'));
+const CatalogAdminPage = lazy(() => import('@/pages/CatalogAdminPage'));
 
 function AppLoadingFallback() {
  return (
@@ -50,6 +54,10 @@ function App() {
  <Route path="/" element={<HomeRedirect />} />
  <Route path="/kunde" element={<CustomerHomePage />} />
  <Route path="/mitarbeiter" element={<WorkspacePage />} />
+ <Route path="/admin/stats" element={<StatsPage />} />
+ <Route path="/admin/users" element={<UsersPage />} />
+ <Route path="/admin/logs" element={<AuditLogsPage />} />
+ <Route path="/admin/catalog" element={<CatalogAdminPage />} />
  </Route>
 
  {/* Catch-all */}

@@ -1,11 +1,32 @@
 import { useAuth } from '@/context/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const { user, loading, login } = useAuth();
+  const [searchParams] = useSearchParams();
+  const error = searchParams.get('error');
+
+  const getErrorMessage = (err) => {
+    switch (err) {
+      case 'discord_denied':
+        return 'Die Anmeldung über Discord wurde abgebrochen oder verweigert.';
+      case 'no_discord_config':
+        return 'Discord OAuth ist auf diesem Server nicht konfiguriert (Verwende den Bypass-Login).';
+      case 'token_exchange':
+        return 'Fehler beim Austausch des Discord-Tokens.';
+      case 'user_fetch':
+        return 'Fehler beim Abrufen der Discord-Benutzerdaten.';
+      case 'session_save':
+        return 'Die Sitzung konnte nicht sicher gespeichert werden.';
+      case 'server_error':
+        return 'Ein interner Serverfehler ist aufgetreten.';
+      default:
+        return 'Ein unbekannter Fehler ist bei der Anmeldung aufgetreten.';
+    }
+  };
 
   if (loading) {
     return (
@@ -35,6 +56,12 @@ export default function LoginPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4 pt-4">
+            {error && (
+              <div className="p-3 mb-2 rounded-lg bg-destructive/15 text-destructive border border-destructive/20 text-sm text-center font-medium">
+                {getErrorMessage(error)}
+              </div>
+            )}
+
             <Button
               onClick={login}
               className="w-full h-12 text-base font-semibold gap-3 cursor-pointer"
@@ -45,6 +72,15 @@ export default function LoginPage() {
               </svg>
               Mit Discord anmelden
             </Button>
+
+            <Button
+              onClick={() => window.location.href = '/api/auth/dev-login'}
+              variant="outline"
+              className="w-full h-12 text-base font-semibold gap-3 cursor-pointer border-primary/20 hover:bg-primary/10 hover:border-primary/40 text-foreground transition-all duration-300 shadow-sm"
+            >
+              Developer-Bypass Login (Ohne Discord)
+            </Button>
+
             <p className="text-center text-xs text-muted-foreground">
               Deine Daten werden sicher über Discord OAuth2 authentifiziert.
             </p>

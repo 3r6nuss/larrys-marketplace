@@ -192,7 +192,15 @@ router.post('/impersonate', async (req, res) => {
     delete req.session.originalUserId;
     const adminUser = (await db.query('SELECT * FROM users WHERE id = ?', [realAdminId])).rows[0];
     await logAction(realAdminId, 'switch_back_admin', 'user', realAdminId, {}, req.ip);
-    return res.json({ success: true, user: adminUser });
+    
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error during switch back:', err);
+        return res.status(500).json({ error: 'Fehler beim Speichern der Session.' });
+      }
+      res.json({ success: true, user: adminUser });
+    });
+    return;
   }
 
   // Fall 2: In einen virtuellen Account wechseln
@@ -214,7 +222,58 @@ router.post('/impersonate', async (req, res) => {
   await logAction(realAdminId, 'impersonate_user', 'user', targetUser.id, { target_role: targetUser.role }, req.ip);
 
   console.log(`👤 Impersonation gestartet: ${currentUser.display_name} -> ${targetUser.display_name} (${targetUser.role})`);
-  res.json({ success: true, user: targetUser });
+  
+  req.session.save((err) => {
+    if (err) {
+      console.error('Session save error during impersonation:', err);
+      return res.status(500).json({ error: 'Fehler beim Speichern der Session.' });
+    }
+    res.json({ success: true, user: targetUser });
+  });
+});
+
+/**
+ * GET /api/auth/dev-login
+ * Developer bypass login route for testing without Discord OAuth.
+ */
+router.get('/dev-login', async (req, res) => {
+  try {
+    // 1. Check if a dev user already exists
+    let result = await db.query("SELECT * FROM users WHERE discord_id = 'dev_superadmin'");
+    let user;
+
+    if (result.rows.length === 0) {
+      // 2. Create the dev user with superadmin privileges
+      result = await db.query(
+        `INSERT INTO users (discord_id, username, display_name, role)
+         VALUES ('dev_superadmin', 'dev_admin', 'Dev Admin', 'superadmin')
+         RETURNING *`
+      );
+      user = result.rows[0];
+      console.log('👑 Dev Superadmin account created');
+    } else {
+      user = result.rows[0];
+    }
+
+    // 3. Set session
+    req.session.userId = user.id;
+
+    // 4. Log the login
+    await logAction(user.id, 'dev_login', 'user', user.id, {}, req.ip);
+
+    // 5. Save session explicitly and redirect to frontend callback
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error during dev login:', err);
+        return res.redirect(`${FRONTEND_URL}/auth/callback?error=session_save`);
+      }
+      res.redirect(`${FRONTEND_URL}/auth/callback`);
+    });
+
+  } catch (err) {
+    console.error('Dev login error:', err);
+    res.redirect(`${FRONTEND_URL}/auth/callback?error=server_error`);
+  }
 });
 
 /**
@@ -305,8 +364,14 @@ router.get('/discord/callback', async (req, res) => {
       discord_username: discordUser.username,
     }, req.ip);
 
-    // 7. Redirect to frontend
-    res.redirect(`${FRONTEND_URL}/auth/callback`);
+    // 7. Save session explicitly to avoid race condition and redirect to frontend
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.redirect(`${FRONTEND_URL}/auth/callback?error=session_save`);
+      }
+      res.redirect(`${FRONTEND_URL}/auth/callback`);
+    });
 
   } catch (err) {
     console.error('Discord OAuth error:', err);

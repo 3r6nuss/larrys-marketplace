@@ -223,10 +223,9 @@ export async function migrate() {
       )
     `);
 
-    // Drop session table to ensure proper schema recreation (fixes TEXT vs TIMESTAMPTZ error)
-    await client.query(`DROP TABLE IF EXISTS session`);
+    // Create session table if not exists (preserves user logins across restarts)
     await client.query(`
-      CREATE TABLE session (
+      CREATE TABLE IF NOT EXISTS session (
         sid     TEXT NOT NULL PRIMARY KEY,
         sess    JSON NOT NULL,
         expire  TIMESTAMPTZ NOT NULL

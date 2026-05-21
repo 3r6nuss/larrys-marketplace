@@ -510,7 +510,7 @@ router.post('/:id/finalize', requireAuth, requireRole('mitarbeiter'), async (req
     if (ticket.seller_id !== req.user.id) {
       await pool.query(
         "INSERT INTO vault_entries (listing_id, owner_id, sold_by_id, amount, status, note) VALUES (?, ?, ?, ?, 'pending', ?)",
-        [ticket.listing_id, ticket.seller_id, req.user.id, ticket.contract_price, \`Verkauf über Ticket #\${ticket.id}\`]
+        [ticket.listing_id, ticket.seller_id, req.user.id, ticket.contract_price, `Verkauf über Ticket #${ticket.id}`]
       );
     }
 
@@ -521,7 +521,7 @@ router.post('/:id/finalize', requireAuth, requireRole('mitarbeiter'), async (req
     );
 
     // 4. Insert formal system message in chat
-    const systemMsg = \`[SYSTEM_CONTRACT_FINALIZED]\`;
+    const systemMsg = `[SYSTEM_CONTRACT_FINALIZED]`;
     await pool.query(
       'INSERT INTO ticket_messages (ticket_id, sender_id, message) VALUES (?, ?, ?)',
       [ticket.id, req.user.id, systemMsg]

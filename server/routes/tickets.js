@@ -136,7 +136,7 @@ router.get('/:id', requireAuth, async (req, res) => {
     const ticketRes = await pool.query(
       `SELECT t.*,
         l.brand, l.model, l.plate, l.image_path, l.category, l.catalog_id,
-        c.display_name as customer_name, c.avatar_url as customer_avatar,
+        c.display_name as customer_name, c.avatar_url as customer_avatar, c.created_at as customer_created_at,
         a.display_name as assigned_name
        FROM tickets t
        LEFT JOIN listings l ON t.listing_id = l.id
@@ -179,7 +179,22 @@ router.get('/:id', requireAuth, async (req, res) => {
       catalog = catRes.rows[0] || null;
     }
 
-    res.json({ ...ticket, messages: msgRes.rows, catalog });
+    // Fetch customer ERP stats if staff
+    let customer_stats = null;
+    if (isStaff) {
+      const statsRes = await pool.query(
+        `SELECT 
+           COUNT(*) as completed_purchases_count,
+           COALESCE(SUM(l.sold_price), 0) as total_spent
+         FROM tickets t
+         JOIN listings l ON t.listing_id = l.id
+         WHERE t.customer_id = ? AND t.status = 'completed'`,
+        [ticket.customer_id]
+      );
+      customer_stats = statsRes.rows[0] || { completed_purchases_count: 0, total_spent: 0 };
+    }
+
+    res.json({ ...ticket, messages: msgRes.rows, catalog, customer_stats });
   } catch (err) {
     console.error('Get ticket detail error:', err);
     res.status(500).json({ error: 'Fehler.' });
@@ -207,13 +222,14 @@ router.post('/:id/messages', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Ticket ist geschlossen.' });
     }
 
+    const newErpStatus = isStaff ? 'waiting_customer' : 'waiting_staff';
     await pool.query(
       'INSERT INTO ticket_messages (ticket_id, sender_id, message) VALUES (?, ?, ?)',
       [t.id, req.user.id, message.trim()]
     );
     await pool.query(
-      "UPDATE tickets SET updated_at = datetime('now') WHERE id = ?",
-      [t.id]
+      "UPDATE tickets SET updated_at = datetime('now'), erp_status = ? WHERE id = ?",
+      [newErpStatus, t.id]
     );
 
     await logAction(req.user.id, 'ticket_message', 'ticket', t.id, {}, req.ip);
@@ -324,6 +340,204 @@ router.put('/:id/status', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Update ticket status error:', err);
     res.status(500).json({ error: 'Fehler.' });
+  }
+});
+
+/**
+ * PUT /api/tickets/:id/erp-status
+ * Update ticket ERP status manually.
+ */
+router.put('/:id/erp-status', requireAuth, async (req, res) => {
+  const { erp_status } = req.body;
+  const valid = ['open', 'waiting_staff', 'waiting_customer', 'completed'];
+  if (!valid.includes(erp_status)) return res.status(400).json({ error: 'Ungültiger ERP-Status.' });
+
+  try {
+    const isStaff = ['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter'].includes(req.user.role);
+    const ticketRes = await pool.query('SELECT * FROM tickets WHERE id = ?', [req.params.id]);
+    if (ticketRes.rows.length === 0) return res.status(404).json({ error: 'Ticket nicht gefunden.' });
+    const ticket = ticketRes.rows[0];
+
+    const isCustomer = ticket.customer_id === req.user.id;
+    if (!isStaff && !isCustomer) return res.status(403).json({ error: 'Keine Berechtigung.' });
+    if (!isStaff && erp_status !== 'completed') {
+      return res.status(403).json({ error: 'Kunde kann Ticket nur abschließen.' });
+    }
+
+    await pool.query(
+      "UPDATE tickets SET erp_status = ?, updated_at = datetime('now') WHERE id = ?",
+      [erp_status, req.params.id]
+    );
+
+    if (erp_status === 'completed') {
+      await pool.query(
+        "UPDATE tickets SET status = 'completed', closed_at = datetime('now') WHERE id = ?",
+        [req.params.id]
+      );
+    }
+
+    await logAction(req.user.id, 'ticket_erp_status_changed', 'ticket', parseInt(req.params.id), {
+      old_status: ticket.erp_status, new_status: erp_status,
+    }, req.ip);
+
+    notificationEvents.emit('update');
+    res.json({ success: true, erp_status });
+  } catch (err) {
+    console.error('Update ERP status error:', err);
+    res.status(500).json({ error: 'Fehler.' });
+  }
+});
+
+/**
+ * POST /api/tickets/:id/contract
+ * Create purchase contract in ticket (staff only).
+ */
+router.post('/:id/contract', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
+  const { price, payment_type } = req.body;
+  if (!price || !payment_type) return res.status(400).json({ error: 'Preis und Zahlungsart erforderlich.' });
+
+  try {
+    const ticketRes = await pool.query('SELECT * FROM tickets WHERE id = ?', [req.params.id]);
+    if (ticketRes.rows.length === 0) return res.status(404).json({ error: 'Ticket nicht gefunden.' });
+    const ticket = ticketRes.rows[0];
+
+    if (['completed', 'cancelled'].includes(ticket.status)) {
+      return res.status(400).json({ error: 'Ticket ist bereits geschlossen.' });
+    }
+
+    await pool.query(
+      `UPDATE tickets SET 
+         contract_price = ?, 
+         contract_payment_type = ?, 
+         contract_created_at = datetime('now'),
+         updated_at = datetime('now')
+       WHERE id = ?`,
+      [parseInt(price), payment_type, req.params.id]
+    );
+
+    const systemMsg = `[SYSTEM_CONTRACT_CREATED] ${price} | ${payment_type}`;
+    await pool.query(
+      'INSERT INTO ticket_messages (ticket_id, sender_id, message) VALUES (?, ?, ?)',
+      [req.params.id, req.user.id, systemMsg]
+    );
+
+    await logAction(req.user.id, 'ticket_contract_created', 'ticket', parseInt(req.params.id), {
+      price, payment_type,
+    }, req.ip);
+
+    notificationEvents.emit('update');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Create contract error:', err);
+    res.status(500).json({ error: 'Fehler beim Erstellen des Kaufvertrags.' });
+  }
+});
+
+/**
+ * DELETE /api/tickets/:id/contract
+ * Cancel contract in ticket (staff only).
+ */
+router.delete('/:id/contract', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
+  try {
+    const ticketRes = await pool.query('SELECT * FROM tickets WHERE id = ?', [req.params.id]);
+    if (ticketRes.rows.length === 0) return res.status(404).json({ error: 'Ticket nicht gefunden.' });
+    const ticket = ticketRes.rows[0];
+
+    if (['completed', 'cancelled'].includes(ticket.status)) {
+      return res.status(400).json({ error: 'Ticket ist bereits geschlossen.' });
+    }
+
+    await pool.query(
+      `UPDATE tickets SET 
+         contract_price = 0, 
+         contract_payment_type = NULL, 
+         contract_created_at = NULL,
+         updated_at = datetime('now')
+       WHERE id = ?`,
+      [req.params.id]
+    );
+
+    const systemMsg = `[SYSTEM_CONTRACT_CANCELLED]`;
+    await pool.query(
+      'INSERT INTO ticket_messages (ticket_id, sender_id, message) VALUES (?, ?, ?)',
+      [req.params.id, req.user.id, systemMsg]
+    );
+
+    await logAction(req.user.id, 'ticket_contract_cancelled', 'ticket', parseInt(req.params.id), {}, req.ip);
+
+    notificationEvents.emit('update');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Cancel contract error:', err);
+    res.status(500).json({ error: 'Fehler beim Stornieren des Kaufvertrags.' });
+  }
+});
+
+/**
+ * POST /api/tickets/:id/finalize
+ * Finalize sale and hand over vehicle (staff only).
+ */
+router.post('/:id/finalize', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
+  try {
+    const ticketRes = await pool.query(
+      `SELECT t.*, l.id as listing_id, l.seller_id, l.brand, l.model, l.plate,
+              c.display_name as customer_name
+       FROM tickets t
+       LEFT JOIN listings l ON t.listing_id = l.id
+       LEFT JOIN users c ON t.customer_id = c.id
+       WHERE t.id = ?`,
+      [req.params.id]
+    );
+
+    if (ticketRes.rows.length === 0) return res.status(404).json({ error: 'Ticket nicht gefunden.' });
+    const ticket = ticketRes.rows[0];
+
+    if (['completed', 'cancelled'].includes(ticket.status)) {
+      return res.status(400).json({ error: 'Ticket ist bereits geschlossen.' });
+    }
+
+    if (!ticket.contract_price || ticket.contract_price <= 0) {
+      return res.status(400).json({ error: 'Es wurde noch kein Kaufvertrag erstellt.' });
+    }
+
+    // 1. Mark listing as sold
+    await pool.query(
+      "UPDATE listings SET status = 'sold', sold_at = datetime('now'), sold_by = ?, sold_to_name = ?, sold_price = ? WHERE id = ?",
+      [req.user.id, ticket.customer_name || 'Kunde', ticket.contract_price, ticket.listing_id]
+    );
+
+    // 2. Create vault entry if sold on behalf of another employee
+    if (ticket.seller_id !== req.user.id) {
+      await pool.query(
+        "INSERT INTO vault_entries (listing_id, owner_id, sold_by_id, amount, status, note) VALUES (?, ?, ?, ?, 'pending', ?)",
+        [ticket.listing_id, ticket.seller_id, req.user.id, ticket.contract_price, \`Verkauf über Ticket #\${ticket.id}\`]
+      );
+    }
+
+    // 3. Mark ticket and ERP status as completed
+    await pool.query(
+      "UPDATE tickets SET status = 'completed', erp_status = 'completed', closed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
+      [ticket.id]
+    );
+
+    // 4. Insert formal system message in chat
+    const systemMsg = \`[SYSTEM_CONTRACT_FINALIZED]\`;
+    await pool.query(
+      'INSERT INTO ticket_messages (ticket_id, sender_id, message) VALUES (?, ?, ?)',
+      [ticket.id, req.user.id, systemMsg]
+    );
+
+    await logAction(req.user.id, 'ticket_finalized', 'ticket', ticket.id, {
+      listing_id: ticket.listing_id,
+      sold_price: ticket.contract_price,
+      sold_to: ticket.customer_name,
+    }, req.ip);
+
+    notificationEvents.emit('update');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Finalize ticket error:', err);
+    res.status(500).json({ error: 'Fehler beim Abschließen des Verkaufs.' });
   }
 });
 

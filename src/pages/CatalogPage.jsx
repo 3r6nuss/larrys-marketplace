@@ -68,7 +68,7 @@ export default function CatalogPage() {
  setLoginPrompt(listing);
  return;
  }
- navigate(`/?modal=tickets&listing=${listing.id}`);
+ navigate(`/kunde?modal=tickets&listing=${listing.id}`);
  };
 
  const handleCardClick = (listing) => {

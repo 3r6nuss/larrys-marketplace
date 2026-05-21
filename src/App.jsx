@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { NotificationProvider } from '@/context/NotificationContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -25,16 +25,18 @@ function AppLoadingFallback() {
   );
 }
 
-/** Redirects "/" based on the user's role */
+/** Redirects "/" based on the user's role, preserving query parameters */
 function HomeRedirect() {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return <AppLoadingFallback />;
   if (!user) return <CustomerHomePage />;
   const ROLE_HIERARCHY = { superadmin: 5, stv_admin: 4, inhaber: 3, mitarbeiter: 2, kunde: 1 };
   const level = ROLE_HIERARCHY[user.role] || 1;
-  if (level >= 3) return <Navigate to="/admin" replace />;
-  if (level >= 2) return <Navigate to="/mitarbeiter" replace />;
-  return <Navigate to="/kunde" replace />;
+  const search = location.search;
+  if (level >= 3) return <Navigate to={`/admin${search}`} replace />;
+  if (level >= 2) return <Navigate to={`/mitarbeiter${search}`} replace />;
+  return <Navigate to={`/kunde${search}`} replace />;
 }
 
 function App() {

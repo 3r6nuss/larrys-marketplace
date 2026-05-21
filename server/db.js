@@ -323,7 +323,11 @@ export async function migrate() {
         updated_at      TEXT DEFAULT CURRENT_TIMESTAMP,
         closed_at       TEXT,
         last_read_customer TEXT DEFAULT CURRENT_TIMESTAMP,
-        last_read_staff    TEXT DEFAULT CURRENT_TIMESTAMP
+        last_read_staff    TEXT DEFAULT CURRENT_TIMESTAMP,
+        erp_status      TEXT DEFAULT 'open',
+        contract_price  INTEGER DEFAULT 0,
+        contract_payment_type TEXT,
+        contract_created_at TEXT
       )
     `);
 
@@ -331,6 +335,10 @@ export async function migrate() {
     try { await client.query(`ALTER TABLE tickets ADD COLUMN priority TEXT DEFAULT 'normal'`); } catch (e) {}
     try { await client.query(`ALTER TABLE tickets ADD COLUMN last_read_customer TEXT DEFAULT CURRENT_TIMESTAMP`); } catch (e) {}
     try { await client.query(`ALTER TABLE tickets ADD COLUMN last_read_staff TEXT DEFAULT CURRENT_TIMESTAMP`); } catch (e) {}
+    try { await client.query(`ALTER TABLE tickets ADD COLUMN erp_status TEXT DEFAULT 'open'`); } catch (e) {}
+    try { await client.query(`ALTER TABLE tickets ADD COLUMN contract_price INTEGER DEFAULT 0`); } catch (e) {}
+    try { await client.query(`ALTER TABLE tickets ADD COLUMN contract_payment_type TEXT`); } catch (e) {}
+    try { await client.query(`ALTER TABLE tickets ADD COLUMN contract_created_at TEXT`); } catch (e) {}
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS ticket_messages (

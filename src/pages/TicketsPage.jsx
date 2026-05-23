@@ -36,16 +36,6 @@ const ERP_STEPS = [
   { key: 'completed', label: 'Erledigt' }
 ];
 
-const playNotificationSound = () => {
-  try {
-    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-    audio.volume = 0.3;
-    audio.play().catch(() => {});
-  } catch (err) {
-    console.warn('Fehler beim Abspielen des Benachrichtigungstons:', err);
-  }
-};
-
 export default function TicketsPage({ isModal }) {
  const { user, hasRole } = useAuth();
  const [searchParams, setSearchParams] = useSearchParams();
@@ -62,7 +52,6 @@ export default function TicketsPage({ isModal }) {
  const [staffUsers, setStaffUsers] = useState([]);
  const [haltStop, setHaltStop] = useState(false);
  const messagesEndRef = useRef(null);
- const previousMessagesCountRef = useRef(0);
 
  // Check if coming from catalog to create a new ticket
  const newTicketListingId = searchParams.get('listing');
@@ -153,17 +142,9 @@ export default function TicketsPage({ isModal }) {
  // Auto-scroll to bottom on new messages
  useEffect(() => {
    if (ticketDetail?.messages) {
-     const currentCount = ticketDetail.messages.length;
-     if (currentCount > previousMessagesCountRef.current && previousMessagesCountRef.current !== 0) {
-       const lastMsg = ticketDetail.messages[currentCount - 1];
-       if (lastMsg.sender_id !== user.id) {
-         playNotificationSound();
-       }
-     }
-     previousMessagesCountRef.current = currentCount;
      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
    }
- }, [ticketDetail?.messages, user.id]);
+ }, [ticketDetail?.messages]);
 
  const sendMessage = async () => {
  if (!message.trim() || !selectedTicket) return;

@@ -117,7 +117,7 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
 
  return (
  <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
- <DialogContent className={`max-w-7xl sm:max-w-7xl w-[95vw] p-0 overflow-hidden border-2 ${catColor} bg-card/95 holo-shimmer`}>
+ <DialogContent className={`max-w-7xl sm:max-w-7xl w-[95vw] md:h-[620px] max-h-[95vh] md:max-h-[620px] p-0 overflow-hidden border-2 ${catColor} bg-card/95 holo-shimmer`}>
  {/* Hidden accessible title */}
  <DialogTitle className="sr-only">
  {listing ? `${listing.brand} ${listing.model}` : 'Fahrzeug-Details'}
@@ -135,11 +135,11 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
  <p className="text-muted-foreground">Fahrzeug nicht gefunden.</p>
  </div>
  ) : (
- <div className="flex flex-col md:flex-row">
+ <div className="flex flex-col md:flex-row h-full overflow-y-auto md:overflow-y-hidden">
  {/* ── LEFT: Image Slider ── */}
- <div className="w-full md:w-[58%] bg-black/20 relative flex flex-col">
+ <div className="w-full md:w-[58%] bg-black/20 relative flex flex-col h-full overflow-hidden">
  {/* Main image */}
- <div className="relative flex-1 min-h-[340px] md:min-h-[520px] flex items-center justify-center overflow-hidden">
+ <div className="relative flex-1 min-h-[340px] md:min-h-0 flex items-center justify-center overflow-hidden">
  {images.length > 0 ? (
  <img
  src={images[currentImage]?.image_path}
@@ -215,7 +215,7 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
  </div>
 
  {/* ── RIGHT: Stat Box ── */}
- <div className="w-full md:w-[42%] p-5 md:p-6 flex flex-col justify-between">
+ <div className="w-full md:w-[42%] p-5 md:p-6 flex flex-col justify-between h-full overflow-y-auto">
  {/* Header */}
  <div>
  <h2 className="text-2xl md:text-3xl font-black tracking-tight leading-tight">

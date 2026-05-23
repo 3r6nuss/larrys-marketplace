@@ -270,7 +270,7 @@ export default function DashboardPage() {
 
  {/* MODALS */}
  <Dialog open={!!activeModal} onOpenChange={(open) => !open && setSearchParams({})}>
- <DialogContent className="max-w-[95vw] sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[1200px] w-full h-[90vh] overflow-y-auto bg-background/95 border-border/50">
+ <DialogContent className="max-w-[95vw] sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[1200px] xl:max-w-[1350px] w-full h-[90vh] overflow-y-auto bg-background/95 border-border/50">
  <div className="p-2 h-full">
  {activeModal === 'listings' && <ListingsPage isModal />}
  {activeModal === 'calculator' && <CalculatorPage isModal />}

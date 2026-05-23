@@ -442,7 +442,7 @@ export default function TicketsPage({ isModal }) {
   return (
     <div className={`flex gap-4 ${isModal ? 'h-full min-h-[60vh]' : 'h-[calc(100vh-8rem)]'}`}>
       {/* Ticket List */}
-      <div className={`${selectedTicket ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-80 lg:w-96 shrink-0`}>
+      <div className={`${selectedTicket ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-72 lg:w-80 shrink-0`}>
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <h1 className="text-xl font-bold tracking-tight">ERP Tickets</h1>
           <div className="flex gap-2">

@@ -61,15 +61,17 @@ router.post('/', requireAuth, async (req, res) => {
     // Notify staff
     notificationEvents.emit('update');
     
-    // Discord DM an alle Mitarbeiter (vereinfacht: wir holen alle staff mit discord_notifications = 1)
+    // Discord DM an alle Mitarbeiter
     try {
-      const staffRes = await pool.query("SELECT discord_id FROM users WHERE role IN ('mitarbeiter', 'inhaber', 'stv_admin', 'superadmin') AND discord_notifications = 1");
+      const staffRes = await pool.query("SELECT discord_id, discord_notifications FROM users WHERE role IN ('mitarbeiter', 'inhaber', 'stv_admin', 'superadmin')");
       const embed = createEmbed()
         .setTitle('🎫 Neue Fahrzeug-Anfrage')
         .setDescription(`Eine neue Anfrage für Inserat #${listing_id} wurde erstellt.`)
-        .addFields({ name: 'Kunde', value: req.user.display_name, inline: true });
+        .addFields({ name: 'Kunde', value: req.user.display_name || req.user.username || 'Unbekannt', inline: true });
       for (const st of staffRes.rows) {
-        if (st.discord_id) sendDM(st.discord_id, embed);
+        if (st.discord_id && (st.discord_notifications == 1 || st.discord_notifications === true)) {
+          sendDM(st.discord_id, embed);
+        }
       }
     } catch (e) { console.error('Discord DM error', e); }
     
@@ -239,10 +241,10 @@ router.post('/:id/messages', requireAuth, async (req, res) => {
       const targetUserId = isStaff ? t.customer_id : (t.assigned_to || null);
       if (targetUserId) {
         const targetRes = await pool.query("SELECT discord_id, discord_notifications FROM users WHERE id = ?", [targetUserId]);
-        if (targetRes.rows.length > 0 && targetRes.rows[0].discord_notifications === 1) {
+        if (targetRes.rows.length > 0 && (targetRes.rows[0].discord_notifications == 1 || targetRes.rows[0].discord_notifications === true)) {
           const embed = createEmbed()
             .setTitle(`💬 Neue Nachricht in Ticket #${t.id}`)
-            .setDescription(`**${req.user.display_name}**: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`)
+            .setDescription(`**${req.user.display_name || req.user.username || 'Benutzer'}**: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`)
             .setURL(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/tickets?modal=tickets`);
           sendDM(targetRes.rows[0].discord_id, embed);
         }
@@ -327,7 +329,7 @@ router.put('/:id/status', requireAuth, async (req, res) => {
     try {
       if (ticket.customer_id) {
         const custRes = await pool.query("SELECT discord_id, discord_notifications FROM users WHERE id = ?", [ticket.customer_id]);
-        if (custRes.rows.length > 0 && custRes.rows[0].discord_notifications === 1) {
+        if (custRes.rows.length > 0 && (custRes.rows[0].discord_notifications == 1 || custRes.rows[0].discord_notifications === true)) {
           const embed = createEmbed()
             .setTitle(`📋 Ticket Status Update`)
             .setDescription(`Dein Ticket #${req.params.id} ist nun: **${status}**`);

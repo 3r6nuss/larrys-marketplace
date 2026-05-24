@@ -59,6 +59,17 @@ export function AuthProvider({ children }) {
  }
  };
 
+ const resetOnboarding = async () => {
+ try {
+ const res = await fetch('/api/users/onboarding-reset', { method: 'POST', credentials: 'include' });
+ if (res.ok) {
+ setUser(prev => prev ? { ...prev, has_completed_onboarding: 0 } : null);
+ }
+ } catch {
+ // ignore
+ }
+ };
+
  const hasRole = useCallback((minRole) => {
  if (!user) return false;
  return (ROLE_HIERARCHY[user.role] || 0) >= (ROLE_HIERARCHY[minRole] || 999);
@@ -75,6 +86,7 @@ export function AuthProvider({ children }) {
  isBlocked,
  refetchUser: fetchUser,
  completeOnboarding,
+ resetOnboarding,
  }), [user, loading, hasRole, isBlocked, fetchUser]);
 
  return (

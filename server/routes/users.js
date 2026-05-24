@@ -117,4 +117,15 @@ router.post('/onboarding-complete', requireAuth, async (req, res) => {
   }
 });
 
+/** POST /api/users/onboarding-reset */
+router.post('/onboarding-reset', requireAuth, async (req, res) => {
+  try {
+    await pool.query('UPDATE users SET has_completed_onboarding = 0 WHERE id = ?', [req.user.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Onboarding reset error:', err);
+    res.status(500).json({ error: 'Fehler beim Zurücksetzen des Onboarding-Status.' });
+  }
+});
+
 export default router;

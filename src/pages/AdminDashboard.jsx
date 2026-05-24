@@ -9,6 +9,7 @@ import {
   Trophy, History, Crown, Shield, StickyNote
 } from 'lucide-react';
 import PopupShell from '@/components/PopupShell';
+import OnboardingOverlay from '@/components/Onboarding/OnboardingOverlay';
 
 export default function AdminDashboard() {
   const { user, hasRole } = useAuth();
@@ -49,8 +50,8 @@ export default function AdminDashboard() {
   const closeModal = () => setSearchParams({});
 
   // Tile helper
-  const Tile = ({ onClick, colSpan = '', icon: Icon, iconColor, iconBg, title, subtitle, value, valueColor, cta, borderColor = 'border-border/50', children }) => (
-    <Card onClick={onClick} className={`${colSpan} relative overflow-hidden group bg-card/60 shadow-lg hover:shadow-lg ${borderColor} hover:border-opacity-60 transition-all duration-150 ${onClick ? 'cursor-pointer' : ''}`}>
+  const Tile = ({ id, onClick, colSpan = '', icon: Icon, iconColor, iconBg, title, subtitle, value, valueColor, cta, borderColor = 'border-border/50', children }) => (
+    <Card id={id} onClick={onClick} className={`${colSpan} relative overflow-hidden group bg-card/60 shadow-lg hover:shadow-lg ${borderColor} hover:border-opacity-60 transition-all duration-150 ${onClick ? 'cursor-pointer' : ''}`}>
       {Icon && (
         <div className="absolute top-1/2 -translate-y-1/2 right-4 opacity-[0.04] group-hover:opacity-[0.08] transition-all duration-200 group-hover:scale-110">
           <Icon className="h-32 w-32" />
@@ -105,6 +106,7 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Benutzerverwaltung - large */}
         <Tile
+          id="tour-users"
           onClick={() => openModal('users')}
           colSpan="md:col-span-2"
           icon={Users}
@@ -120,6 +122,7 @@ export default function AdminDashboard() {
 
         {/* Statistiken */}
         <Tile
+          id="tour-stats"
           onClick={() => openModal('stats')}
           icon={BarChart3}
           iconColor="text-chart-2"
@@ -217,6 +220,8 @@ export default function AdminDashboard() {
 
       {/* Popup Shell */}
       <PopupShell activeModal={activeModal} onClose={closeModal} />
+      
+      <OnboardingOverlay role="inhaber" />
     </div>
   );
 }

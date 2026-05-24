@@ -48,6 +48,17 @@ export function AuthProvider({ children }) {
  window.location.href = '/';
  };
 
+ const completeOnboarding = async () => {
+ try {
+ const res = await fetch('/api/users/onboarding-complete', { method: 'POST', credentials: 'include' });
+ if (res.ok) {
+ setUser(prev => prev ? { ...prev, has_completed_onboarding: 1 } : null);
+ }
+ } catch {
+ // ignore
+ }
+ };
+
  const hasRole = useCallback((minRole) => {
  if (!user) return false;
  return (ROLE_HIERARCHY[user.role] || 0) >= (ROLE_HIERARCHY[minRole] || 999);
@@ -63,6 +74,7 @@ export function AuthProvider({ children }) {
  hasRole,
  isBlocked,
  refetchUser: fetchUser,
+ completeOnboarding,
  }), [user, loading, hasRole, isBlocked, fetchUser]);
 
  return (

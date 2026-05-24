@@ -390,7 +390,7 @@ router.get('/me', async (req, res) => {
 
   try {
     const result = await db.query(
-      'SELECT id, discord_id, username, display_name, avatar_url, role, is_blocked, created_at, last_login FROM users WHERE id = ?',
+      'SELECT id, discord_id, username, display_name, avatar_url, role, is_blocked, created_at, last_login, has_completed_onboarding FROM users WHERE id = ?',
       [req.session.userId]
     );
 

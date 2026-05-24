@@ -16,7 +16,14 @@ export function AuthProvider({ children }) {
 
  const fetchUser = useCallback(async () => {
  try {
- const res = await fetch('/api/auth/me', { credentials: 'include' });
+ const res = await fetch('/api/auth/me', { 
+   credentials: 'include',
+   cache: 'no-store',
+   headers: {
+     'Cache-Control': 'no-cache',
+     'Pragma': 'no-cache'
+   }
+ });
  if (res.ok) {
  const data = await res.json();
  setUser(data.user);

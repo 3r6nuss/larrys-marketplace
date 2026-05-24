@@ -28,11 +28,11 @@ const ROLE_COLORS = {
 
 export default function ProfilePage() {
  const { user, logout, refetchUser, resetOnboarding } = useAuth();
- const [discordDms, setDiscordDms] = useState(user?.discord_notifications === 1);
+ const [discordDms, setDiscordDms] = useState(user?.discord_notifications == 1 || user?.discord_notifications === true);
 
  useEffect(() => {
    if (user) {
-     setDiscordDms(user.discord_notifications === 1);
+     setDiscordDms(user.discord_notifications == 1 || user.discord_notifications === true);
    }
  }, [user]);
 

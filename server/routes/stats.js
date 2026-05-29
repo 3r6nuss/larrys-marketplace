@@ -123,7 +123,7 @@ router.get('/notifications', requireAuth, requireRole('mitarbeiter'), async (req
     const result = await pool.query(
       isAdmin 
         ? `SELECT COUNT(*) as count FROM tickets WHERE status IN ('open','in_progress')`
-        : `SELECT COUNT(*) as count FROM tickets WHERE assigned_to = ? AND status IN ('open','in_progress')`,
+        : `SELECT COUNT(*) as count FROM tickets WHERE (assigned_to = ? OR assigned_to IS NULL) AND status IN ('open','in_progress')`,
       isAdmin ? [] : [userId]
     );
     
@@ -177,20 +177,13 @@ router.get('/dashboard', requireAuth, requireRole('mitarbeiter'), async (req, re
     const [listings, tickets, sales, views, vaultRes, topVehicles, activityRes] = await Promise.all([
       q(isAdmin
         ? `SELECT COUNT(*) as count FROM listings WHERE status = 'available'`
-        : `SELECT COUNT(*) as count FROM listings WHERE seller_id = ? AND status = 'available'`,
-        isAdmin ? [] : [userId]),
+        : `SELECT COUNT(*) as count FROM listings WHERE status = 'available'`),
       q(isAdmin
         ? `SELECT COUNT(*) as count FROM tickets WHERE status IN ('open','in_progress')`
-        : `SELECT COUNT(*) as count FROM tickets WHERE assigned_to = ? AND status IN ('open','in_progress')`,
+        : `SELECT COUNT(*) as count FROM tickets WHERE (assigned_to = ? OR assigned_to IS NULL) AND status IN ('open','in_progress')`,
         isAdmin ? [] : [userId]),
-      q(isAdmin
-        ? `SELECT COUNT(*) as count FROM listings WHERE status = 'sold' AND sold_at >= date('now','start of month')`
-        : `SELECT COUNT(*) as count FROM listings WHERE sold_by = ? AND status = 'sold' AND sold_at >= date('now','start of month')`,
-        isAdmin ? [] : [userId]),
-      q(isAdmin
-        ? `SELECT COALESCE(SUM(view_count),0) as total FROM listings`
-        : `SELECT COALESCE(SUM(view_count),0) as total FROM listings WHERE seller_id = ?`,
-        isAdmin ? [] : [userId]),
+      q(`SELECT COUNT(*) as count FROM listings WHERE status = 'sold' AND sold_at >= date('now','start of month')`),
+      q(`SELECT COALESCE(SUM(view_count),0) as total FROM listings`),
       pool.query(
         `SELECT COALESCE(SUM(amount), 0) as total FROM vault_entries WHERE owner_id = ? AND status = 'pending'`,
         [userId]
@@ -201,20 +194,16 @@ router.get('/dashboard', requireAuth, requireRole('mitarbeiter'), async (req, re
                 SUM(view_count) as views_count, 
                 MAX(image_path) as image_path 
          FROM listings 
-         ${isAdmin ? '' : 'WHERE seller_id = ? '}
          GROUP BY brand, model 
          HAVING sales_count > 0 OR views_count > 0 
          ORDER BY sales_count DESC, views_count DESC 
-         LIMIT 5`,
-        isAdmin ? [] : [userId]
+         LIMIT 5`
       ),
       pool.query(
         `SELECT al.action, al.entity_type, al.details, al.created_at,
          u.display_name as user_name FROM audit_log al
          LEFT JOIN users u ON al.user_id = u.id
-         ${isAdmin ? '' : 'WHERE al.user_id = ?'}
-         ORDER BY al.created_at DESC LIMIT 10`,
-        isAdmin ? [] : [userId]
+         ORDER BY al.created_at DESC LIMIT 10`
       )
     ]);
 

@@ -48,10 +48,11 @@ export default function TicketsPage({ isModal }) {
  const [sending, setSending] = useState(false);
  const [statusFilter, setStatusFilter] = useState('all');
  const [assignedToFilter, setAssignedToFilter] = useState(user?.id?.toString() || 'all');
- const [showClosed, setShowClosed] = useState(false);
- const [staffUsers, setStaffUsers] = useState([]);
- const [haltStop, setHaltStop] = useState(false);
- const messagesEndRef = useRef(null);
+  const [showClosed, setShowClosed] = useState(false);
+  const [staffUsers, setStaffUsers] = useState([]);
+  const [haltStop, setHaltStop] = useState(false);
+  const [showWorkspace, setShowWorkspace] = useState(false);
+  const messagesEndRef = useRef(null);
 
  // Check if coming from catalog to create a new ticket
  const newTicketListingId = searchParams.get('listing');
@@ -402,23 +403,13 @@ export default function TicketsPage({ isModal }) {
     );
   };
 
-  // Rate limit "Halt Stop" overlay
-  if (haltStop) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 animate-in fade-in duration-200">
-        <img
-          src="https://media.tenor.com/images/3c0f3e51e612e87c53f40e4a3900a1d0/tenor.gif"
-          alt="Halt Stop"
-          className="w-64 rounded-xl shadow-xl"
-          onError={(e) => { e.target.style.display = 'none'; }}
-        />
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-destructive">Halt Stop! 🛑</h2>
-          <p className="text-muted-foreground mt-2">Zu viele Anfragen! Bitte warte einen Moment.</p>
-        </div>
-      </div>
-    );
-  }
+  // Quick replies constants for German GTA RP
+  const QUICK_REPLIES = [
+    { label: '👋 Begrüßung', text: 'Hallo! Vielen Dank für Ihr Interesse. Ich kümmere mich sehr gerne um Ihre Anfrage. Wann passt es Ihnen für ein kurzes Gespräch oder eine Probefahrt bei uns?' },
+    { label: '📝 Vertrag bereit', text: 'Ich habe soeben den Kaufvertrag für Ihr Fahrzeug vorbereitet. Bitte prüfen Sie den Vertragsentwurf direkt in unserer App und geben Sie mir Bescheid!' },
+    { label: '🚗 Übergabe bereit', text: 'Das Fahrzeug steht vollgetankt, aufbereitet und schlüsselfertig für Sie bereit. Sie können gerne vorbeikommen, um die Übergabe abzuschließen!' },
+    { label: '🎉 Verkauft / Dank', text: 'Herzlichen Glückwunsch zum neuen Fahrzeug und allzeit gute Fahrt! Es war mir eine Freude. Wenn Sie noch etwas brauchen, melden Sie sich gerne!' }
+  ];
 
   return (
     <div className={`flex gap-4 ${isModal ? 'h-full min-h-[60vh]' : 'h-[calc(100vh-8rem)]'}`}>
@@ -541,10 +532,10 @@ export default function TicketsPage({ isModal }) {
             </div>
           </div>
         ) : ticketDetail ? (
-          <div className="flex-1 flex h-full overflow-hidden">
+          <div className="flex-1 flex h-full overflow-hidden relative">
             {/* Middle Chat Panel */}
             <div className="flex-1 flex flex-col h-full min-w-0">
-              {/* Chat Header & Stepper */}
+              {/* Chat Header & Compact ERP Select Selector */}
               <div className="flex flex-col border-b border-border bg-card/40 shrink-0">
                 <div className="flex items-center gap-3 p-3">
                   <Button
@@ -567,60 +558,51 @@ export default function TicketsPage({ isModal }) {
                     )}
                   </div>
                   
-                  {/* Status update options for admin/inhaber if cancelled */}
-                  {ticketDetail.status === 'cancelled' && (
+                  {/* ERP Status Controls built seamlessly into Chat Header */}
+                  {ticketDetail.status === 'cancelled' ? (
                     <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-[10px] uppercase font-bold py-1 px-2">
                       Storniert
                     </Badge>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {/* Responsive Workspace Toggle Button */}
+                      {hasRole('mitarbeiter') && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowWorkspace(!showWorkspace)}
+                          className="xl:hidden gap-1.5 cursor-pointer h-8 text-xs font-semibold border-primary/20 hover:bg-primary/10 hover:border-primary/30"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-primary" />
+                          {showWorkspace ? 'Chat' : 'Vertrag & CRM'}
+                        </Button>
+                      )}
+
+                      {/* Status Dropdown */}
+                      {hasRole('mitarbeiter') ? (
+                        <Select 
+                          value={ticketDetail.erp_status} 
+                          onValueChange={(val) => handleStepClick(val)}
+                        >
+                          <SelectTrigger className="w-[145px] h-8 text-xs font-semibold bg-background/50 border-border/50">
+                            <SelectValue placeholder="ERP Status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ERP_STEPS.map(step => (
+                              <SelectItem key={step.key} value={step.key} className="text-xs font-medium">
+                                {step.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge className={`${STATUS_MAP[ticketDetail.erp_status]?.class || STATUS_MAP.open.class} text-[10px] font-bold border rounded-md shadow-sm`}>
+                          {STATUS_MAP[ticketDetail.erp_status]?.label || STATUS_MAP.open.label}
+                        </Badge>
+                      )}
+                    </div>
                   )}
                 </div>
-
-                {/* ERP 4-Step Stepper */}
-                {ticketDetail.status !== 'cancelled' && (
-                  <div className="px-4 py-3 border-t border-border/30 bg-muted/15 flex items-center justify-between gap-1 overflow-x-auto select-none">
-                    {ERP_STEPS.map((step, idx) => {
-                      const activeIdx = getActiveStepIndex(ticketDetail.status, ticketDetail.erp_status);
-                      const isCompleted = idx < activeIdx;
-                      const isActive = idx === activeIdx;
-                      
-                      return (
-                        <div 
-                          key={step.key}
-                          onClick={() => handleStepClick(step.key)}
-                          className={`flex items-center gap-2 transition-all duration-200 shrink-0 ${
-                            hasRole('mitarbeiter') ? 'cursor-pointer hover:opacity-85' : 'pointer-events-none'
-                          } ${isActive ? 'scale-[1.01]' : ''}`}
-                        >
-                          {idx > 0 && (
-                            <div className={`h-[2px] w-4 sm:w-8 md:w-12 rounded-full mr-1 shrink-0 ${
-                              isCompleted || isActive ? 'bg-primary/75' : 'bg-border/60'
-                            }`} />
-                          )}
-                          
-                          <div className={`w-5.5 h-5.5 rounded-full flex items-center justify-center text-[10px] font-bold border transition-all duration-200 shrink-0 ${
-                            isActive 
-                              ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/30 ring-4 ring-primary/15'
-                              : isCompleted
-                                ? 'bg-success/20 border-success/30 text-success'
-                                : 'bg-muted/80 border-border text-muted-foreground/75'
-                          }`}>
-                            {idx + 1}
-                          </div>
-                          
-                          <span className={`text-[11px] font-medium transition-all duration-200 ${
-                            isActive 
-                              ? 'text-primary font-extrabold'
-                              : isCompleted
-                                ? 'text-success font-semibold'
-                                : 'text-muted-foreground/80'
-                          }`}>
-                            {step.label}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
 
               {/* Chat Stream */}
@@ -658,16 +640,40 @@ export default function TicketsPage({ isModal }) {
                 </div>
               </ScrollArea>
 
-              {/* Message Input */}
+              {/* Message Input with inline warnings and quick replies */}
               {ticketDetail.status !== 'completed' && ticketDetail.status !== 'cancelled' && (
-                <div className="p-3 border-t border-border bg-card/15 shrink-0">
+                <div className="p-3 border-t border-border bg-card/15 shrink-0 space-y-2.5">
+                  {/* Non-blocking rate-limit banner */}
+                  {haltStop && (
+                    <div className="p-2.5 rounded-xl bg-destructive/15 border border-destructive/25 text-destructive text-xs font-semibold flex items-center gap-2 animate-bounce">
+                      <AlertTriangle className="h-4 w-4 shrink-0 animate-pulse" />
+                      <span>Halt Stop! 🛑 Zu viele Anfragen! Bitte warte einen Moment.</span>
+                    </div>
+                  )}
+
+                  {/* High-speed quick replies row */}
+                  {hasRole('mitarbeiter') && (
+                    <div className="flex flex-wrap gap-1.5 pb-2 border-b border-border/40 overflow-x-auto select-none no-scrollbar">
+                      {QUICK_REPLIES.map((reply, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setMessage(reply.text)}
+                          className="h-7 text-[10px] px-2.5 py-0 cursor-pointer rounded-full border border-muted hover:border-primary/40 bg-background hover:bg-primary/5 transition-all text-muted-foreground hover:text-foreground shrink-0 font-medium shadow-sm"
+                        >
+                          {reply.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
                     <Input
                       value={message}
                       onChange={e => setMessage(e.target.value)}
                       onKeyDown={handleKeyDown}
                       placeholder="Nachricht schreiben..."
-                      className="flex-1 bg-background/60 border-border/60"
+                      className="flex-1 bg-background/60 border-border/60 focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
                       disabled={sending}
                     />
                     <Button
@@ -683,179 +689,165 @@ export default function TicketsPage({ isModal }) {
               )}
             </div>
 
-            {/* Right ERP Sidebar (Staff Only) */}
+            {/* Right ERP Sidebar (Staff Only) - Sleek & Ultra-compact unified panel */}
             {hasRole('mitarbeiter') && (
-              <div className="w-80 border-l border-border/75 bg-card/35 p-4 space-y-4 overflow-y-auto hidden xl:flex flex-col shrink-0">
-                {/* 1. Customer CRM Dossier */}
-                <Card className="border-border/50 bg-card/25 shadow-sm">
-                  <CardHeader className="p-3 border-b border-border/40">
-                    <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1.5">
-                      <Award className="w-3.5 h-3.5 text-primary" />
-                      Kundendossier (CRM)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-3 space-y-2.5 text-xs">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] text-muted-foreground">Kunde:</span>
-                      <span className="font-semibold text-foreground/90">{ticketDetail.customer_name}</span>
-                    </div>
-                    {ticketDetail.customer_created_at && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Mitglied seit:</span>
-                        <span className="font-medium text-foreground/80">
-                          {new Date(ticketDetail.customer_created_at).toLocaleDateString('de-DE', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between items-center border-t border-border/30 pt-2">
-                      <span className="text-muted-foreground">Gekaufte Fahrzeuge:</span>
-                      <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] font-bold rounded-md">
-                        {ticketDetail.customer_stats?.completed_purchases_count || 0} Käufe
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Umsatz bei Larry's:</span>
-                      <span className="font-bold text-emerald-500 font-mono">
-                        ${(ticketDetail.customer_stats?.total_spent || 0).toLocaleString('de-DE')}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
+              <div className={`w-80 border-l border-border/75 bg-card/35 p-4 space-y-4 overflow-y-auto shrink-0 transition-all duration-200 ${
+                showWorkspace 
+                  ? 'flex absolute inset-0 z-30 bg-background/95 w-full border-l-0'
+                  : 'hidden xl:flex flex-col'
+              }`}>
+                {/* Unified Workspace Header */}
+                <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                  <h3 className="text-xs uppercase tracking-wider font-extrabold text-foreground flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-primary" />
+                    Mitarbeiter-Workspace
+                  </h3>
+                  {showWorkspace && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowWorkspace(false)}
+                      className="xl:hidden h-7 text-xs font-semibold cursor-pointer"
+                    >
+                      Schließen
+                    </Button>
+                  )}
+                </div>
 
-                {/* 2. Vehicle Catalog Pricing Specs */}
-                {ticketDetail.catalog && (
-                  <Card className="border-border/50 bg-card/25 shadow-sm">
-                    <CardHeader className="p-3 border-b border-border/40">
-                      <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1.5">
-                        <TrendingUp className="w-3.5 h-3.5 text-primary" />
-                        Katalog-Richtwerte
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-3 space-y-2 text-xs">
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Händlereinkauf:</span>
-                        <span className="font-semibold text-foreground/85">${ticketDetail.catalog.dealer_price?.toLocaleString('de-DE')}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Min. Verkaufspreis:</span>
-                        <span className="font-semibold text-foreground/85">${ticketDetail.catalog.min_sell_price?.toLocaleString('de-DE')}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Max. Verkaufspreis:</span>
-                        <span className="font-semibold text-foreground/85">${ticketDetail.catalog.max_sell_price?.toLocaleString('de-DE')}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                {/* CRM & Catalog Summary - Ultra-compact 2-Column Grid */}
+                <div className="grid grid-cols-2 gap-3 text-xs bg-muted/20 border border-border/40 rounded-xl p-3 shadow-inner">
+                  {/* Customer Dossier Column */}
+                  <div className="space-y-1.5 border-r border-border/40 pr-2">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wide flex items-center gap-1">
+                      <User className="w-3 h-3 text-primary" /> Kunde
+                    </p>
+                    <p className="font-semibold text-foreground truncate">{ticketDetail.customer_name}</p>
+                    <div className="text-[10px] text-muted-foreground space-y-0.5 pt-1">
+                      <p>Käufe: <span className="font-bold text-foreground">{ticketDetail.customer_stats?.completed_purchases_count || 0}</span></p>
+                      <p className="truncate">Gesamt: <span className="font-bold text-emerald-500">${(ticketDetail.customer_stats?.total_spent || 0).toLocaleString('de-DE')}</span></p>
+                    </div>
+                  </div>
 
-                {/* 3. Purchase Contract Module */}
-                <Card className="border-border/50 bg-card/25 shadow-sm border-t-2 border-t-primary/45">
-                  <CardHeader className="p-3 border-b border-border/40">
-                    <CardTitle className="text-xs uppercase tracking-wider text-primary font-bold flex items-center gap-1.5">
-                      <FileText className="w-3.5 h-3.5" />
-                      Kaufvertrags-Modul
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-3 space-y-3">
-                    {/* Render active contract or generator form */}
-                    {ticketDetail.contract_price && ticketDetail.contract_price > 0 ? (
-                      <div className="space-y-3 text-xs">
-                        <div className="bg-primary/5 border border-primary/20 rounded-lg p-2.5 space-y-1.5">
-                          <div className="flex justify-between font-medium">
-                            <span className="text-muted-foreground">Kaufpreis:</span>
-                            <span className="font-bold text-primary">${ticketDetail.contract_price.toLocaleString('de-DE')}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Zahlungsart:</span>
-                            <span className="font-semibold uppercase text-[10px]">
-                              {ticketDetail.contract_payment_type === 'financing' ? 'Finanzierung' : 'Bar'}
-                            </span>
-                          </div>
-                          <div className="text-[10px] text-muted-foreground mt-1.5 border-t border-border/25 pt-1.5">
-                            Ausgestellt am {new Date(ticketDetail.contract_created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                        </div>
-                        
-                        {ticketDetail.status !== 'completed' && (
-                          <div className="flex flex-col gap-2 pt-1">
-                            <Button 
-                              onClick={finalizeContract}
-                              className="w-full h-8 text-xs font-bold bg-success hover:bg-success/90 hover:scale-[1.01] active:scale-[0.99] text-success-foreground transition-all flex items-center justify-center gap-1.5 shadow-sm"
-                            >
-                              <Sparkles className="w-3.5 h-3.5" />
-                              Fahrzeug übergeben
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              onClick={cancelContract}
-                              className="w-full h-8 text-xs border-destructive/30 text-destructive hover:bg-destructive/15 transition-all flex items-center justify-center gap-1"
-                            >
-                              <XCircle className="w-3.5 h-3.5" />
-                              Kaufvertrag stornieren
-                            </Button>
-                          </div>
-                        )}
+                  {/* Catalog Specs Column */}
+                  <div className="space-y-1.5 pl-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wide flex items-center gap-1">
+                      <Car className="w-3 h-3 text-primary" /> Richtwerte
+                    </p>
+                    {ticketDetail.catalog ? (
+                      <div className="text-[10px] text-muted-foreground space-y-0.5">
+                        <p>Einkauf: <span className="font-bold text-foreground">${ticketDetail.catalog.dealer_price?.toLocaleString('de-DE')}</span></p>
+                        <p>Spanne: <span className="font-bold text-foreground">${ticketDetail.catalog.min_sell_price?.toLocaleString('de-DE')} - ${ticketDetail.catalog.max_sell_price?.toLocaleString('de-DE')}</span></p>
                       </div>
                     ) : (
-                      <div className="space-y-3.5">
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Aushandlungspreis ($)</label>
-                          <div className="relative">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
-                            <Input
-                              type="number"
-                              value={contractPriceInput}
-                              onChange={e => setContractPriceInput(e.target.value)}
-                              placeholder="Verkaufspreis eintragen"
-                              className="h-8.5 text-xs pl-6 bg-background/40 border-border/50 font-mono"
-                              disabled={ticketDetail.status === 'completed' || ticketDetail.status === 'cancelled'}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Zahlungsart</label>
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setContractPaymentType('cash')}
-                              className={`h-8 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
-                                contractPaymentType === 'cash'
-                                  ? 'bg-primary/10 border-primary text-primary shadow-sm'
-                                  : 'bg-background/25 border-border/60 text-muted-foreground hover:bg-muted/40'
-                              }`}
-                              disabled={ticketDetail.status === 'completed' || ticketDetail.status === 'cancelled'}
-                            >
-                              Barzahlung
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setContractPaymentType('financing')}
-                              className={`h-8 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
-                                contractPaymentType === 'financing'
-                                  ? 'bg-primary/10 border-primary text-primary shadow-sm'
-                                  : 'bg-background/25 border-border/60 text-muted-foreground hover:bg-muted/40'
-                              }`}
-                              disabled={ticketDetail.status === 'completed' || ticketDetail.status === 'cancelled'}
-                            >
-                              Finanzierung
-                            </button>
-                          </div>
-                        </div>
-
-                        {ticketDetail.status !== 'completed' && ticketDetail.status !== 'cancelled' && (
-                          <Button 
-                            onClick={generateContract}
-                            className="w-full h-8.5 text-xs font-bold hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-1.5 shadow-sm mt-1"
-                          >
-                            <FileText className="w-3.5 h-3.5" />
-                            Kaufvertrag erstellen
-                          </Button>
-                        )}
-                      </div>
+                      <p className="text-[10px] text-muted-foreground italic">Kein Katalog-Eintrag</p>
                     )}
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
+
+                {/* Kaufvertrag Terminal Box */}
+                <div className="bg-gradient-to-br from-card/80 to-muted/20 border border-primary/20 rounded-xl p-3.5 shadow-md shadow-primary/5 space-y-3">
+                  <h4 className="text-[11px] uppercase tracking-wider text-primary font-bold flex items-center gap-1.5 border-b border-border/40 pb-2">
+                    <FileText className="w-3.5 h-3.5" />
+                    Kaufvertrags-Terminal
+                  </h4>
+
+                  {ticketDetail.contract_price && ticketDetail.contract_price > 0 ? (
+                    <div className="space-y-3.5 text-xs">
+                      <div className="bg-primary/5 border border-primary/20 rounded-lg p-2.5 space-y-1.5">
+                        <div className="flex justify-between font-medium">
+                          <span className="text-muted-foreground">Kaufpreis:</span>
+                          <span className="font-bold text-primary">${ticketDetail.contract_price.toLocaleString('de-DE')}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Zahlungsart:</span>
+                          <span className="font-semibold uppercase text-[10px] text-foreground">
+                            {ticketDetail.contract_payment_type === 'financing' ? 'Finanzierung' : 'Bar'}
+                          </span>
+                        </div>
+                        <div className="text-[9px] text-muted-foreground/80 mt-1 border-t border-border/20 pt-1">
+                          Erstellt am {new Date(ticketDetail.contract_created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+
+                      {ticketDetail.status !== 'completed' && (
+                        <div className="flex flex-col gap-2 pt-1">
+                          <Button 
+                            onClick={finalizeContract}
+                            className="w-full h-9 text-xs font-bold bg-success hover:bg-success/90 hover:scale-[1.01] active:scale-[0.99] text-success-foreground transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-success/15 cursor-pointer"
+                          >
+                            <Sparkles className="w-3.5 h-3.5 text-white" />
+                            Fahrzeug übergeben
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            onClick={cancelContract}
+                            className="w-full h-8 text-xs border-destructive/20 text-destructive hover:bg-destructive/10 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            Vertrag stornieren
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3.5">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Aushandlungspreis ($)</label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                          <Input
+                            type="number"
+                            value={contractPriceInput}
+                            onChange={e => setContractPriceInput(e.target.value)}
+                            placeholder="Verkaufspreis eintragen"
+                            className="h-8.5 text-xs pl-6 bg-background/40 border-border/50 font-mono focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all"
+                            disabled={ticketDetail.status === 'completed' || ticketDetail.status === 'cancelled'}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Zahlungsart</label>
+                        <div className="grid grid-cols-2 gap-2 bg-muted/30 p-1 rounded-xl border border-border/40">
+                          <button
+                            type="button"
+                            onClick={() => setContractPaymentType('cash')}
+                            className={`h-7.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                              contractPaymentType === 'cash'
+                                ? 'bg-primary/20 border border-primary/30 text-primary shadow-sm'
+                                : 'border border-transparent text-muted-foreground hover:bg-muted/40'
+                            }`}
+                            disabled={ticketDetail.status === 'completed' || ticketDetail.status === 'cancelled'}
+                          >
+                            Barzahlung
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setContractPaymentType('financing')}
+                            className={`h-7.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                              contractPaymentType === 'financing'
+                                ? 'bg-primary/20 border border-primary/30 text-primary shadow-sm'
+                                : 'border border-transparent text-muted-foreground hover:bg-muted/40'
+                            }`}
+                            disabled={ticketDetail.status === 'completed' || ticketDetail.status === 'cancelled'}
+                          >
+                            Finanzierung
+                          </button>
+                        </div>
+                      </div>
+
+                      {ticketDetail.status !== 'completed' && ticketDetail.status !== 'cancelled' && (
+                        <Button 
+                          onClick={generateContract}
+                          className="w-full h-9 text-xs font-bold hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-primary/10 cursor-pointer mt-1"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          Kaufvertrag erstellen
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

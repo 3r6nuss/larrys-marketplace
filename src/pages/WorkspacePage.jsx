@@ -6,10 +6,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
- ArrowRight, Ticket, Wallet, Package, Calculator,
- StickyNote, BarChart3, Users, ScrollText, Database,
- TrendingUp, Store, Wrench, Trophy, History, Search
- } from 'lucide-react';
+  ArrowRight, Ticket, Wallet, Package, Calculator,
+  StickyNote, BarChart3, Users, ScrollText, Database,
+  TrendingUp, Store, Wrench, Trophy, History, Search, DollarSign
+} from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 import PopupShell from '@/components/PopupShell';
 import OnboardingOverlay from '@/components/Onboarding/OnboardingOverlay';
 
@@ -56,6 +60,9 @@ export default function WorkspacePage() {
  const [loading, setLoading] = useState(true);
  const [notes, setNotes] = useState('');
  const [requestCount, setRequestCount] = useState(0);
+ const [activeListings, setActiveListings] = useState([]);
+ const [directSellOpen, setDirectSellOpen] = useState(false);
+ const [directSellForm, setDirectSellForm] = useState({ listingId: '', soldToName: '', soldPrice: '' });
 
  const currentDate = new Date().toLocaleDateString('de-DE', {
  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -100,6 +107,59 @@ export default function WorkspacePage() {
  const openModal = (name) => setSearchParams({ modal: name });
  const closeModal = () => setSearchParams({});
 
+  const openDirectSell = () => {
+    fetch('/api/listings?status=available', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        setActiveListings(data);
+        setDirectSellForm({ listingId: '', soldToName: '', soldPrice: '' });
+        setDirectSellOpen(true);
+      })
+      .catch(() => toast.error('Fehler beim Laden der Fahrzeuge.'));
+  };
+
+  const handleDirectSellSubmit = async () => {
+    if (!directSellForm.listingId || !directSellForm.soldToName || !directSellForm.soldPrice) {
+      toast.error('Bitte fülle alle Pflichtfelder aus.');
+      return;
+    }
+    const selectedListing = activeListings.find(l => l.id.toString() === directSellForm.listingId);
+    if (!selectedListing) return;
+
+    try {
+      const body = {
+        sold_to_name: directSellForm.soldToName,
+        sold_price: parseInt(directSellForm.soldPrice),
+      };
+      if (selectedListing.seller_id !== user.id) {
+        body.on_behalf_of = selectedListing.seller_id;
+      }
+
+      const res = await fetch(`/api/listings/${selectedListing.id}/sell`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body)
+      });
+
+      if (res.ok) {
+        toast.success('Verkauf erfolgreich direkt eingebucht! 🎉');
+        setDirectSellOpen(false);
+        // Refresh dashboard statistics
+        setLoading(true);
+        fetch('/api/stats/dashboard', { credentials: 'include' })
+          .then(r => r.ok ? r.json() : null)
+          .then(data => { if (data) setStaffStats(data); })
+          .finally(() => setLoading(false));
+      } else {
+        const err = await res.json();
+        toast.error(err.error || 'Fehler beim Einbuchen.');
+      }
+    } catch {
+      toast.error('Netzwerkfehler.');
+    }
+  };
+
  if (!user) return null;
 
  return (
@@ -121,14 +181,17 @@ export default function WorkspacePage() {
  </h1>
  <p className="text-muted-foreground mt-1 text-sm">{currentDate}</p>
  </div>
- <div className="flex flex-wrap items-center gap-2">
- <Button onClick={() => openModal('listings')} className="gap-2 cursor-pointer shadow-lg shadow-primary/20">
- <Package className="h-4 w-4" />Neues Inserat
- </Button>
- <Button variant="outline" onClick={() => openModal('calculator')} className="gap-2 cursor-pointer">
- <Calculator className="h-4 w-4" />Rechner
- </Button>
- </div>
+  <div className="flex flex-wrap items-center gap-2">
+  <Button onClick={openDirectSell} className="gap-2 cursor-pointer bg-success text-success-foreground hover:bg-success/90 shadow-lg shadow-success/10">
+  <DollarSign className="h-4 w-4 text-white" />Direktverkauf
+  </Button>
+  <Button onClick={() => openModal('listings')} className="gap-2 cursor-pointer shadow-lg shadow-primary/20">
+  <Package className="h-4 w-4" />Neues Inserat
+  </Button>
+  <Button variant="outline" onClick={() => openModal('calculator')} className="gap-2 cursor-pointer">
+  <Calculator className="h-4 w-4" />Rechner
+  </Button>
+  </div>
  </div>
 
  {/* Main Staff Tiles */}
@@ -147,25 +210,6 @@ export default function WorkspacePage() {
  <Tile loading={loading} onClick={() => openModal('requests')} icon={Search} iconColor="text-chart-2" iconBg="bg-chart-2/10"
   title="Fahrzeuganfragen" subtitle="Offene Kundenwünsche" value={requestCount} valueColor="text-chart-2"
   cta="Ansehen" borderColor="border-chart-2/20 hover:border-chart-2/40" />
-
- {/* Kunden Dashboard Tile */}
- <Card onClick={() => navigate('/kunde')} className="bg-card/40 border-chart-4/20 hover:border-chart-4/40 transition-all hover:shadow-lg cursor-pointer group relative overflow-hidden">
- <div className="absolute top-1/2 -translate-y-1/2 right-4 opacity-[0.04] group-hover:opacity-[0.08] transition-all duration-200 group-hover:scale-110">
- <Store className="h-32 w-32" />
- </div>
- <CardHeader>
- <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
- <div className="p-2 bg-chart-4/10 rounded-md"><Store className="h-5 w-5 text-chart-4" /></div>
- Kunden Dashboard
- </CardTitle>
- <CardDescription>Sieh den Marktplatz aus Kundensicht</CardDescription>
- </CardHeader>
- <CardContent>
- <div className="inline-flex items-center gap-1.5 text-sm font-bold text-chart-4 group-hover:underline">
- Zum Marktplatz <ArrowRight className="h-4 w-4" />
- </div>
- </CardContent>
- </Card>
  </div>
 
  {/* Top Fahrzeuge */}
@@ -218,10 +262,89 @@ export default function WorkspacePage() {
  </CardContent>
  </Card>
 
- {/* Popup Shell */}
- <PopupShell activeModal={activeModal} onClose={closeModal} />
+  {/* Popup Shell */}
+  <PopupShell activeModal={activeModal} onClose={closeModal} />
 
- <OnboardingOverlay role="mitarbeiter" />
- </div>
+  {/* Direktverkauf Dialog */}
+  <Dialog open={directSellOpen} onOpenChange={setDirectSellOpen}>
+    <DialogContent className="max-w-sm">
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2 text-foreground font-bold">
+          <DollarSign className="h-5 w-5 text-success" />
+          Fahrzeug-Direktverkauf
+        </DialogTitle>
+        <DialogDescription className="text-xs">
+          Buche einen Verkauf direkt ein, ohne dass der Kunde erst eine Anfrage erstellen musste.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="space-y-4 py-3">
+        {/* Listing Selector */}
+        <div className="space-y-1.5">
+          <Label htmlFor="direct_listing" className="text-xs font-semibold text-muted-foreground uppercase">Fahrzeug auswählen *</Label>
+          <select
+            id="direct_listing"
+            value={directSellForm.listingId}
+            onChange={e => {
+              const selectedId = e.target.value;
+              const selectedListing = activeListings.find(l => l.id.toString() === selectedId);
+              setDirectSellForm(f => ({
+                ...f,
+                listingId: selectedId,
+                soldPrice: selectedListing?.custom_price?.toString() || ''
+              }));
+            }}
+            className="w-full h-9 rounded-lg border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+          >
+            <option value="">-- Fahrzeug auswählen --</option>
+            {activeListings.map(l => (
+              <option key={l.id} value={l.id.toString()}>
+                {l.brand} {l.model} ({l.plate || 'kein Kennzeichen'}) - ${l.custom_price?.toLocaleString('de-DE')}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Customer Name */}
+        <div className="space-y-1.5">
+          <Label htmlFor="direct_customer" className="text-xs font-semibold text-muted-foreground uppercase">Käufer Name *</Label>
+          <Input
+            id="direct_customer"
+            value={directSellForm.soldToName}
+            onChange={e => setDirectSellForm(f => ({ ...f, soldToName: e.target.value }))}
+            placeholder="Name des Kunden"
+            className="h-9 text-sm"
+          />
+        </div>
+
+        {/* Price */}
+        <div className="space-y-1.5">
+          <Label htmlFor="direct_price" className="text-xs font-semibold text-muted-foreground uppercase">Endpreis ($) *</Label>
+          <Input
+            id="direct_price"
+            type="number"
+            value={directSellForm.soldPrice}
+            onChange={e => setDirectSellForm(f => ({ ...f, soldPrice: e.target.value }))}
+            placeholder="Verkaufspreis eintragen"
+            className="font-mono h-9 text-sm focus-visible:ring-success/50"
+          />
+        </div>
+      </div>
+
+      <DialogFooter className="gap-2">
+        <Button variant="outline" onClick={() => setDirectSellOpen(false)} className="cursor-pointer h-9 text-xs">Abbrechen</Button>
+        <Button 
+          onClick={handleDirectSellSubmit} 
+          disabled={!directSellForm.listingId || !directSellForm.soldToName || !directSellForm.soldPrice}
+          className="bg-success text-success-foreground hover:bg-success/90 cursor-pointer h-9 text-xs font-bold"
+        >
+          Verkauf buchen
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <OnboardingOverlay role="mitarbeiter" />
+  </div>
  );
 }

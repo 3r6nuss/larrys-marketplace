@@ -51,9 +51,11 @@ const ROLE_LABELS = {
  * Opens as a large popup over the catalog with image slider and stat box.
  */
 export default function VehicleDetailModal({ listingId, open, onClose }) {
- const { user, login } = useAuth();
+ const { user, login, hasRole } = useAuth();
  const { addViewed } = useRecentlyViewed();
  const navigate = useNavigate();
+
+ const isStaff = hasRole('mitarbeiter');
 
  const [listing, setListing] = useState(null);
  const [loading, setLoading] = useState(true);
@@ -114,6 +116,38 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
  const images = listing?.images || [];
  const catColor = CATEGORY_COLORS[listing?.category] || CATEGORY_COLORS.Sonstige;
  const catAccent = CATEGORY_ACCENT[listing?.category] || CATEGORY_ACCENT.Sonstige;
+
+ const detailsContent = listing ? (
+  <div className="space-y-2.5">
+   {listing.category && (
+    <StatRow icon={Tag} label="Kategorie">
+     <Badge variant="outline" className={`${catAccent} border-current/30`}>
+      {listing.category}
+     </Badge>
+    </StatRow>
+   )}
+   {listing.plate && (
+    <StatRow icon={Hash} label="Kennzeichen">
+     <span className="font-mono font-bold text-sm">{listing.plate}</span>
+    </StatRow>
+   )}
+   <StatRow icon={Calendar} label="Gelistet">
+    <span className="text-sm">
+     {listing.listed_at
+      ? new Date(listing.listed_at).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })
+      : '—'
+     }
+    </span>
+   </StatRow>
+   {listing.status && (
+    <StatRow icon={Car} label="Status">
+     <Badge variant={listing.status === 'available' ? 'default' : 'secondary'}>
+      {listing.status === 'available' ? 'Verfügbar' : listing.status === 'reserved' ? 'Reserviert' : 'Verkauft'}
+     </Badge>
+    </StatRow>
+   )}
+  </div>
+ ) : null;
 
  return (
  <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -225,48 +259,26 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
  {listing.model}
  </h3>
 
- <Tabs defaultValue="details" className="mt-6">
-  <TabsList className="grid w-full grid-cols-2">
-   <TabsTrigger value="details">Details</TabsTrigger>
-   <TabsTrigger value="finance">Finanzierung</TabsTrigger>
-  </TabsList>
-  
-  <TabsContent value="details" className="mt-4 space-y-4">
-   <div className="space-y-2.5">
-    {listing.category && (
-     <StatRow icon={Tag} label="Kategorie">
-      <Badge variant="outline" className={`${catAccent} border-current/30`}>
-       {listing.category}
-      </Badge>
-     </StatRow>
-    )}
-    {listing.plate && (
-     <StatRow icon={Hash} label="Kennzeichen">
-      <span className="font-mono font-bold text-sm">{listing.plate}</span>
-     </StatRow>
-    )}
-    <StatRow icon={Calendar} label="Gelistet">
-     <span className="text-sm">
-      {listing.listed_at
-       ? new Date(listing.listed_at).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })
-       : '—'
-      }
-     </span>
-    </StatRow>
-    {listing.status && (
-     <StatRow icon={Car} label="Status">
-      <Badge variant={listing.status === 'available' ? 'default' : 'secondary'}>
-       {listing.status === 'available' ? 'Verfügbar' : listing.status === 'reserved' ? 'Reserviert' : 'Verkauft'}
-      </Badge>
-     </StatRow>
-    )}
+  {isStaff ? (
+   <Tabs defaultValue="details" className="mt-6">
+    <TabsList className="grid w-full grid-cols-2">
+     <TabsTrigger value="details">Details</TabsTrigger>
+     <TabsTrigger value="finance">Finanzierung</TabsTrigger>
+    </TabsList>
+    
+    <TabsContent value="details" className="mt-4 space-y-4">
+     {detailsContent}
+    </TabsContent>
+    
+    <TabsContent value="finance" className="mt-4">
+     <FinancingCalculator price={listing.custom_price || 0} />
+    </TabsContent>
+   </Tabs>
+  ) : (
+   <div className="mt-6 space-y-4">
+    {detailsContent}
    </div>
-  </TabsContent>
-  
-  <TabsContent value="finance" className="mt-4">
-   <FinancingCalculator price={listing.custom_price || 0} />
-  </TabsContent>
- </Tabs>
+  )}
 </div>
 
  {/* Separator */}

@@ -174,10 +174,11 @@ router.get('/dashboard', requireAuth, requireRole('mitarbeiter'), async (req, re
 
     const q = (sql, params = []) => pool.query(sql, params).then(r => r.rows[0]);
 
-    const [listings, tickets, sales, views, vaultRes, topVehicles, activityRes] = await Promise.all([
+    const [listings, tickets, sales, views, vaultRes, topVehicles, activityRes, usersCount] = await Promise.all([
       q(isAdmin
         ? `SELECT COUNT(*) as count FROM listings WHERE status = 'available'`
-        : `SELECT COUNT(*) as count FROM listings WHERE status = 'available'`),
+        : `SELECT COUNT(*) as count FROM listings WHERE seller_id = ? AND status = 'available'`,
+        isAdmin ? [] : [userId]),
       q(isAdmin
         ? `SELECT COUNT(*) as count FROM tickets WHERE status IN ('open','in_progress')`
         : `SELECT COUNT(*) as count FROM tickets WHERE (assigned_to = ? OR assigned_to IS NULL) AND status IN ('open','in_progress')`,
@@ -204,7 +205,8 @@ router.get('/dashboard', requireAuth, requireRole('mitarbeiter'), async (req, re
          u.display_name as user_name FROM audit_log al
          LEFT JOIN users u ON al.user_id = u.id
          ORDER BY al.created_at DESC LIMIT 10`
-      )
+      ),
+      isAdmin ? q(`SELECT COUNT(*) as count FROM users`) : Promise.resolve({ count: 0 })
     ]);
 
     const ACTION_LABELS = {
@@ -225,6 +227,7 @@ router.get('/dashboard', requireAuth, requireRole('mitarbeiter'), async (req, re
         time: new Date(a.created_at).toLocaleString('de-DE'),
         action: a.action,
       })),
+      total_users: isAdmin ? parseInt(usersCount.count) : undefined,
     });
   } catch (err) {
     console.error('Dashboard stats error:', err);

@@ -196,7 +196,7 @@ router.get('/dashboard', requireAuth, requireRole('mitarbeiter'), async (req, re
                 MAX(image_path) as image_path 
          FROM listings 
          GROUP BY brand, model 
-         HAVING sales_count > 0 OR views_count > 0 
+         HAVING SUM(CASE WHEN status = 'sold' THEN 1 ELSE 0 END) > 0 OR SUM(view_count) > 0 
          ORDER BY sales_count DESC, views_count DESC 
          LIMIT 5`
       ),

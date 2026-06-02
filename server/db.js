@@ -28,20 +28,20 @@ if (DB_HOST) {
     query: async (sql, params) => {
       let pgSql = sql;
       if (pgSql) {
-        // Convert SQLite datetime('now') to PostgreSQL NOW()
-        pgSql = pgSql.replace(/datetime\('now'\)/gi, 'NOW()');
+        // Convert SQLite datetime('now') to PostgreSQL string formatted datetime
+        pgSql = pgSql.replace(/datetime\('now'\)/gi, "to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')");
         
         // Convert SQLite datetime('now', '-' || ? || ' seconds')
-        pgSql = pgSql.replace(/datetime\('now',\s*'-'\s*\|\|\s*\?\s*\|\|\s*' seconds'\)/gi, "(NOW() - (? || ' seconds')::interval)");
+        pgSql = pgSql.replace(/datetime\('now',\s*'-'\s*\|\|\s*\?\s*\|\|\s*' seconds'\)/gi, "to_char(NOW() - (? || ' seconds')::interval, 'YYYY-MM-DD HH24:MI:SS')");
         
-        // Convert SQLite date('now') to CURRENT_DATE
-        pgSql = pgSql.replace(/date\('now'\)/gi, "CURRENT_DATE");
+        // Convert SQLite date('now') to PostgreSQL string formatted date
+        pgSql = pgSql.replace(/date\('now'\)/gi, "to_char(CURRENT_DATE, 'YYYY-MM-DD')");
         
-        // Convert SQLite date('now', 'start of month') to date_trunc('month', CURRENT_DATE)
-        pgSql = pgSql.replace(/date\('now',\s*'start of month'\)/gi, "date_trunc('month', CURRENT_DATE)");
+        // Convert SQLite date('now', 'start of month') to PostgreSQL string formatted start of month
+        pgSql = pgSql.replace(/date\('now',\s*'start of month'\)/gi, "to_char(date_trunc('month', CURRENT_DATE), 'YYYY-MM-DD')");
         
-        // Convert SQLite date('now', 'start of month', '-1 month') to date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
-        pgSql = pgSql.replace(/date\('now',\s*'start of month',\s*'-1 month'\)/gi, "(date_trunc('month', CURRENT_DATE) - INTERVAL '1 month')");
+        // Convert SQLite date('now', 'start of month', '-1 month') to PostgreSQL string formatted start of last month
+        pgSql = pgSql.replace(/date\('now',\s*'start of month',\s*'-1 month'\)/gi, "to_char(date_trunc('month', CURRENT_DATE) - INTERVAL '1 month', 'YYYY-MM-DD')");
 
         // Convert SQLite ? placeholders to PostgreSQL $1, $2
         if (params && params.length > 0) {
@@ -206,6 +206,19 @@ if (DB_HOST) {
 export async function migrate() {
   const client = db.connect ? await db.connect() : db;
   try {
+    if (isPostgres) {
+      // Define custom date(text) helper function for PostgreSQL
+      await client.query(`
+        CREATE OR REPLACE FUNCTION date(t text) RETURNS date AS $$
+        BEGIN
+          RETURN t::date;
+        EXCEPTION WHEN OTHERS THEN
+          RETURN NULL;
+        END;
+        $$ LANGUAGE plpgsql IMMUTABLE;
+      `);
+    }
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id            SERIAL PRIMARY KEY,

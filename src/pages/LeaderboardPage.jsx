@@ -14,14 +14,26 @@ export default function LeaderboardPage() {
   useEffect(() => {
     setLoading(true);
     fetch(`/api/stats/leaderboard?period=${period}`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(setStats)
-      .catch(console.error)
+      .then(r => {
+        if (!r.ok) throw new Error('Fehler beim Laden');
+        return r.json();
+      })
+      .then(data => {
+        if (Array.isArray(data)) {
+          setStats(data);
+        } else {
+          setStats([]);
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        setStats([]);
+      })
       .finally(() => setLoading(false));
   }, [period]);
 
-  const podium = stats.slice(0, 3);
-  const rest = stats.slice(3);
+  const podium = Array.isArray(stats) ? stats.slice(0, 3) : [];
+  const rest = Array.isArray(stats) ? stats.slice(3) : [];
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-200">

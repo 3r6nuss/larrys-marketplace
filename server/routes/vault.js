@@ -54,7 +54,11 @@ router.put('/:id/payout', requireAuth, requireRole('mitarbeiter'), async (req, r
       [req.user.id, req.params.id]
     );
 
-    await logAction(req.user.id, 'vault_payout', 'vault', parseInt(req.params.id), {}, req.ip);
+    const entryData = entry.rows[0];
+    await logAction(req.user.id, 'vault_payout', 'vault', parseInt(req.params.id), {
+      amount: entryData.amount,
+      owner_id: entryData.owner_id
+    }, req.ip);
     res.json({ success: true });
   } catch (err) {
     console.error('Vault payout error:', err);
@@ -68,11 +72,19 @@ router.put('/:id/payout', requireAuth, requireRole('mitarbeiter'), async (req, r
  */
 router.put('/:id/revert', requireAuth, requireRole('superadmin'), async (req, res) => {
   try {
+    const entry = await pool.query('SELECT * FROM vault_entries WHERE id = ?', [req.params.id]);
+    if (entry.rows.length === 0) return res.status(404).json({ error: 'Nicht gefunden.' });
+    
     await pool.query(
       "UPDATE vault_entries SET status = 'pending', paid_out_at = NULL, confirmed_by = NULL WHERE id = ?",
       [req.params.id]
     );
-    await logAction(req.user.id, 'vault_payout_reverted', 'vault', parseInt(req.params.id), {}, req.ip);
+    
+    const entryData = entry.rows[0];
+    await logAction(req.user.id, 'vault_payout_reverted', 'vault', parseInt(req.params.id), {
+      amount: entryData.amount,
+      owner_id: entryData.owner_id
+    }, req.ip);
     res.json({ success: true });
   } catch (err) {
     console.error('Vault revert error:', err);

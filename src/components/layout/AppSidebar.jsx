@@ -73,7 +73,7 @@ export default function AppSidebar() {
  const adminNav = [
  { title: 'Statistiken', url: '/admin/stats', icon: BarChart3, minRole: 'inhaber' },
  { title: 'Benutzerverwaltung', url: '/admin/users', icon: Users, minRole: 'inhaber' },
- { title: 'Audit-Logs', url: '/admin/logs', icon: ScrollText, minRole: 'stv_admin' },
+ { title: 'Audit-Logs', url: '/admin/logs', icon: ScrollText, minRole: 'inhaber' },
  { title: 'Katalog-Import', url: '/admin/catalog', icon: Database, minRole: 'inhaber' },
  ];
 

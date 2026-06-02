@@ -261,11 +261,17 @@ router.put('/:id', requireAuth, requireRole('mitarbeiter'), upload.single('image
   if (sets.length === 0) return res.status(400).json({ error: 'Keine Änderungen.' });
 
   try {
-    params.push(req.params.id);
     await pool.query(`UPDATE listings SET ${sets.join(', ')} WHERE id = ?`, params);
     const updated = await pool.query('SELECT * FROM listings WHERE id = ?', [req.params.id]);
-    await logAction(req.user.id, 'listing_updated', 'listing', parseInt(req.params.id), {}, req.ip);
-    res.json(updated.rows[0]);
+    const upRow = updated.rows[0];
+    await logAction(req.user.id, 'listing_updated', 'listing', parseInt(req.params.id), {
+      brand: upRow.brand,
+      model: upRow.model,
+      plate: upRow.plate,
+      status: upRow.status,
+      custom_price: upRow.custom_price
+    }, req.ip);
+    res.json(upRow);
   } catch (err) {
     console.error('Update listing error:', err);
     res.status(500).json({ error: 'Fehler.' });

@@ -6,16 +6,23 @@ const router = Router();
 
 /**
  * GET /api/logs
- * Paginated audit log (stv_admin+).
- * Query: ?action=&search=&limit=50&offset=0
+ * Paginated audit log (inhaber+).
+ * Query: ?action=&search=&role_type=&limit=50&offset=0
  */
-router.get('/', requireAuth, requireRole('stv_admin'), async (req, res) => {
-  const { action, search, limit = 50, offset = 0 } = req.query;
+router.get('/', requireAuth, requireRole('inhaber'), async (req, res) => {
+  const { action, search, role_type, limit = 50, offset = 0 } = req.query;
 
   let where = [];
   let params = [];
 
   if (action) { where.push('al.action = ?'); params.push(action); }
+  
+  if (role_type === 'staff') {
+    where.push("u.role IN ('mitarbeiter', 'inhaber', 'stv_admin', 'superadmin')");
+  } else if (role_type === 'customer') {
+    where.push("u.role = 'kunde'");
+  }
+
   if (search) {
     where.push('(u.display_name LIKE ? OR u.username LIKE ? OR al.action LIKE ?)');
     const q = `%${search}%`;
@@ -26,7 +33,7 @@ router.get('/', requireAuth, requireRole('stv_admin'), async (req, res) => {
 
   try {
     const sql = `
-      SELECT al.*, u.display_name as user_name, u.avatar_url as user_avatar
+      SELECT al.*, u.display_name as user_name, u.avatar_url as user_avatar, u.role as user_role
       FROM audit_log al
       LEFT JOIN users u ON al.user_id = u.id
       ${whereClause}
@@ -60,7 +67,7 @@ router.get('/', requireAuth, requireRole('stv_admin'), async (req, res) => {
  * GET /api/logs/actions
  * Get distinct action types for filter dropdown.
  */
-router.get('/actions', requireAuth, requireRole('stv_admin'), async (req, res) => {
+router.get('/actions', requireAuth, requireRole('inhaber'), async (req, res) => {
   try {
     const result = await pool.query('SELECT DISTINCT action FROM audit_log ORDER BY action ASC');
     res.json(result.rows.map(r => r.action));

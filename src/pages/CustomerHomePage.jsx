@@ -93,38 +93,38 @@ export default function CustomerHomePage() {
  const openModal = (name) => setSearchParams({ modal: name });
  const closeModal = () => setSearchParams({});
 
- const Tile = ({ onClick, colSpan = '', icon: Icon, iconColor, iconBg, title, subtitle, value, valueColor, cta, borderColor = 'border-border/50', children }) => (
- <Card onClick={onClick} className={`${colSpan} relative overflow-hidden group bg-card shadow-sm hover:shadow-md border ${borderColor} hover:border-opacity-80 transition-colors duration-200 ${onClick ? 'cursor-pointer' : ''}`}>
- {Icon && (
- <div className="absolute top-1/2 -translate-y-1/2 right-4 opacity-[0.04] group-hover:opacity-[0.08] transition-all duration-200 group-hover:scale-110">
- <Icon className="h-32 w-32" />
- </div>
- )}
- <CardHeader className={children ? '' : 'pb-2'}>
- <CardTitle className={`${value !== undefined ? 'text-2xl' : 'text-sm font-medium text-muted-foreground'} flex items-center gap-2`}>
- {iconBg && <div className={`p-2 ${iconBg} rounded-md`}><Icon className={`h-5 w-5 ${iconColor}`} /></div>}
- {!iconBg && Icon && <Icon className={`h-4 w-4 ${iconColor}`} />}
- {title}
- </CardTitle>
- {subtitle && <CardDescription className="text-base">{subtitle}</CardDescription>}
- </CardHeader>
- <CardContent>
- {value !== undefined && (
- <div className="flex items-end justify-between relative z-10">
- <div className={`text-5xl font-black ${valueColor} tracking-tighter`}>
- {loading ? <Skeleton className="h-14 w-20" /> : value}
- </div>
- {cta && (
- <div className={`inline-flex items-center gap-1.5 text-sm font-bold ${iconColor} px-4 py-2 rounded-full transition-colors group-hover:underline`}>
- {cta} <ArrowRight className="h-4 w-4" />
- </div>
- )}
- </div>
- )}
- {children}
- </CardContent>
- </Card>
- );
+  const Tile = ({ onClick, colSpan = '', icon: Icon, iconColor, iconBg, title, subtitle, value, valueColor, cta, borderColor = 'border-border/40', children }) => (
+    <Card onClick={onClick} className={`${colSpan} relative overflow-hidden group bg-card/40 backdrop-blur-md border ${borderColor} hover:border-primary/40 shadow-xl hover:shadow-2xl hover:shadow-primary/5 transition-all duration-300 rounded-2xl ${onClick ? 'cursor-pointer' : ''}`}>
+      {Icon && (
+        <div className="absolute top-1/2 -translate-y-1/2 right-4 opacity-[0.03] group-hover:opacity-[0.06] transition-all duration-300 group-hover:scale-110 group-hover:rotate-6 pointer-events-none">
+          <Icon className="h-32 w-32" />
+        </div>
+      )}
+      <CardHeader className={children ? 'pb-2' : 'pb-2'}>
+        <CardTitle className={`${value !== undefined ? 'text-lg font-extrabold text-foreground' : 'text-sm font-medium text-muted-foreground'} flex items-center gap-3`}>
+          {iconBg && <div className={`p-2 rounded-xl ${iconBg} shadow-inner transition-transform group-hover:scale-105`}><Icon className={`h-5 w-5 ${iconColor}`} /></div>}
+          {!iconBg && Icon && <Icon className={`h-4 w-4 ${iconColor}`} />}
+          {title}
+        </CardTitle>
+        {subtitle && <CardDescription className="text-sm text-muted-foreground/80 mt-1 leading-relaxed">{subtitle}</CardDescription>}
+      </CardHeader>
+      <CardContent className="pt-2">
+        {value !== undefined && (
+          <div className="flex items-end justify-between relative z-10">
+            <div className={`text-5xl font-black ${valueColor} tracking-tight drop-shadow-sm`}>
+              {loading ? <Skeleton className="h-12 w-16 rounded-lg" /> : value}
+            </div>
+            {cta && (
+              <div className={`inline-flex items-center gap-1.5 text-xs font-bold ${iconColor} px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 transition-all duration-200 group-hover:bg-primary/25 group-hover:scale-105 shadow-sm`}>
+                {cta} <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+              </div>
+            )}
+          </div>
+        )}
+        {children}
+      </CardContent>
+    </Card>
+  );
 
  return (
  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-200 max-w-6xl mx-auto">

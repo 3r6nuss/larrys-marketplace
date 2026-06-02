@@ -95,15 +95,15 @@ export default function DashboardLayout() {
     <TooltipProvider>
       <div className="min-h-screen bg-background flex flex-col">
         {/* ── Slim Topbar ── */}
-        <header className="sticky top-0 z-50 h-14 border-b border-border/50 bg-background/80 backdrop-blur-sm px-4 md:px-6 flex items-center justify-between shrink-0">
+        <header className="sticky top-0 z-50 h-14 border-b border-border/40 bg-background/60 backdrop-blur-md px-4 md:px-6 flex items-center justify-between shrink-0">
           {/* Left: Logo */}
           <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm shrink-0 shadow-md shadow-primary/20 group-hover:shadow-primary/40 transition-shadow">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground font-bold text-sm shrink-0 shadow-md shadow-primary/20 group-hover:shadow-primary/40 transition-all duration-300 group-hover:scale-105">
               L
             </div>
             <div className="flex flex-col leading-none">
-              <span className="text-sm font-bold tracking-tight">Larry's</span>
-              <span className="text-[10px] text-muted-foreground">Marketplace</span>
+              <span className="text-sm font-black tracking-tight group-hover:text-primary transition-colors duration-200">Larry's</span>
+              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Marketplace</span>
             </div>
           </Link>
 

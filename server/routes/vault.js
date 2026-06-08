@@ -3,6 +3,10 @@ import pool from '../db.js';
 import { requireAuth, requireRole, logAction } from '../middleware/auth.js';
 
 const router = Router();
+const ADMIN_ROLES = new Set(['superadmin', 'stv_admin', 'inhaber']);
+const toId = (value) => Number.parseInt(value, 10);
+
+const isAdminUser = (user) => !!user && ADMIN_ROLES.has(user.role);
 
 /**
  * GET /api/vault
@@ -10,7 +14,7 @@ const router = Router();
  */
 router.get('/', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
   try {
-    const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
+    const isAdmin = isAdminUser(req.user);
     const sql = `
       SELECT ve.*,
         l.brand, l.model, l.plate,
@@ -42,7 +46,7 @@ router.put('/:id/payout', requireAuth, requireRole('mitarbeiter'), async (req, r
     if (entry.rows.length === 0) return res.status(404).json({ error: 'Eintrag nicht gefunden.' });
     if (entry.rows[0].status === 'paid_out') return res.status(400).json({ error: 'Bereits ausgezahlt.' });
 
-    const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
+    const isAdmin = isAdminUser(req.user);
     const isOwner = entry.rows[0].owner_id === req.user.id;
 
     if (!isAdmin && !isOwner) {
@@ -55,7 +59,7 @@ router.put('/:id/payout', requireAuth, requireRole('mitarbeiter'), async (req, r
     );
 
     const entryData = entry.rows[0];
-    await logAction(req.user.id, 'vault_payout', 'vault', parseInt(req.params.id), {
+    await logAction(req.user.id, 'vault_payout', 'vault', toId(req.params.id), {
       amount: entryData.amount,
       owner_id: entryData.owner_id
     }, req.ip);
@@ -81,7 +85,7 @@ router.put('/:id/revert', requireAuth, requireRole('superadmin'), async (req, re
     );
     
     const entryData = entry.rows[0];
-    await logAction(req.user.id, 'vault_payout_reverted', 'vault', parseInt(req.params.id), {
+    await logAction(req.user.id, 'vault_payout_reverted', 'vault', toId(req.params.id), {
       amount: entryData.amount,
       owner_id: entryData.owner_id
     }, req.ip);

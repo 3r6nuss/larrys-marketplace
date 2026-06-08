@@ -1,5 +1,37 @@
 const API_BASE = '/api';
 
+function jsonRequest(method, data) {
+ return {
+ method,
+ body: JSON.stringify(data),
+ };
+}
+
+function methodOnlyRequest(method) {
+ return { method };
+}
+
+function buildQuery(filters, keys) {
+ const params = new URLSearchParams();
+ keys.forEach((key) => {
+ if (filters[key]) params.set(key, filters[key]);
+ });
+ const query = params.toString();
+ return query ? `?${query}` : '';
+}
+
+async function parseResponseData(response) {
+ if (response.status === 204) return null;
+
+ const contentType = response.headers.get('content-type') || '';
+ if (contentType.includes('application/json')) {
+ return response.json();
+ }
+
+ const text = await response.text();
+ return text || null;
+}
+
 /**
  * Get the stored auth token from localStorage.
  */
@@ -51,11 +83,15 @@ async function apiFetch(endpoint, options = {}) {
  }
 
  if (!response.ok) {
- const data = await response.json().catch(() => ({}));
- throw new Error(data.error || `API-Fehler: ${response.status}`);
+ const data = await parseResponseData(response).catch(() => null);
+ const message =
+ typeof data === 'object' && data !== null && 'error' in data
+ ? data.error
+ : null;
+ throw new Error(message || `API-Fehler: ${response.status}`);
  }
 
- return response.json();
+ return parseResponseData(response);
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -72,14 +108,8 @@ export async function verifyToken(token) {
 // ─── Cars ────────────────────────────────────────────────────────────────────
 
 export async function fetchCars(filters = {}) {
- const params = new URLSearchParams();
- if (filters.seller) params.set('seller', filters.seller);
- if (filters.category) params.set('category', filters.category);
- if (filters.sort) params.set('sort', filters.sort);
- if (filters.status) params.set('status', filters.status);
-
- const query = params.toString();
- return apiFetch(`/cars${query ? `?${query}` : ''}`);
+ const query = buildQuery(filters, ['seller', 'category', 'sort', 'status']);
+ return apiFetch(`/cars${query}`);
 }
 
 export async function fetchCar(id) {
@@ -100,23 +130,15 @@ export async function updateCar(id, data) {
  body: data,
  });
  }
- return apiFetch(`/cars/${id}`, {
- method: 'PUT',
- body: JSON.stringify(data),
- });
+ return apiFetch(`/cars/${id}`, jsonRequest('PUT', data));
 }
 
 export async function updateCarStatus(id, status) {
- return apiFetch(`/cars/${id}/status`, {
- method: 'PUT',
- body: JSON.stringify({ status }),
- });
+ return apiFetch(`/cars/${id}/status`, jsonRequest('PUT', { status }));
 }
 
 export async function deleteCar(id) {
- return apiFetch(`/cars/${id}`, {
- method: 'DELETE',
- });
+ return apiFetch(`/cars/${id}`, methodOnlyRequest('DELETE'));
 }
 
 // ─── Employees ───────────────────────────────────────────────────────────────
@@ -126,27 +148,17 @@ export async function fetchEmployees() {
 }
 
 export async function createEmployee(data) {
- return apiFetch('/employees', {
- method: 'POST',
- body: JSON.stringify(data),
- });
+ return apiFetch('/employees', jsonRequest('POST', data));
 }
 
 export async function updateEmployee(id, data) {
- return apiFetch(`/employees/${id}`, {
- method: 'PUT',
- body: JSON.stringify(data),
- });
+ return apiFetch(`/employees/${id}`, jsonRequest('PUT', data));
 }
 
 export async function deleteEmployee(id) {
- return apiFetch(`/employees/${id}`, {
- method: 'DELETE',
- });
+ return apiFetch(`/employees/${id}`, methodOnlyRequest('DELETE'));
 }
 
 export async function setDefaultEmployee(id) {
- return apiFetch(`/employees/${id}/default`, {
- method: 'PUT',
- });
+ return apiFetch(`/employees/${id}/default`, methodOnlyRequest('PUT'));
 }

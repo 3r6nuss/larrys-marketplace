@@ -4,6 +4,10 @@ import { requireAuth, optionalAuth, requireRole } from '../middleware/auth.js';
 import notificationEvents from '../events.js';
 
 const router = Router();
+const ADMIN_ROLES = new Set(['superadmin', 'stv_admin', 'inhaber']);
+
+const isAdminUser = (user) => !!user && ADMIN_ROLES.has(user.role);
+const toInt = (value) => Number.parseInt(value, 10) || 0;
 
 /**
  * GET /api/stats/public
@@ -19,10 +23,10 @@ router.get('/public', async (req, res) => {
     const views = await q(`SELECT COALESCE(SUM(view_count), 0) as total FROM listings`);
 
     res.json({
-      total_available: parseInt(available.count),
-      total_categories: parseInt(categories.count),
-      today_listed: parseInt(todayListed.count),
-      total_views: parseInt(views.total),
+      total_available: toInt(available.count),
+      total_categories: toInt(categories.count),
+      today_listed: toInt(todayListed.count),
+      total_views: toInt(views.total),
     });
   } catch (err) {
     console.error('Public stats error:', err);
@@ -48,8 +52,8 @@ router.get('/customer', requireAuth, async (req, res) => {
     );
 
     res.json({
-      my_open_tickets: parseInt(openTickets.rows[0].count),
-      my_total_tickets: parseInt(totalTickets.rows[0].count),
+      my_open_tickets: toInt(openTickets.rows[0].count),
+      my_total_tickets: toInt(totalTickets.rows[0].count),
     });
   } catch (err) {
     console.error('Customer stats error:', err);
@@ -92,14 +96,14 @@ router.get('/', requireAuth, requireRole('inhaber'), async (req, res) => {
     };
 
     res.json({
-      listings_active: parseInt(active.count),
-      listings_sold: parseInt(sold.count),
-      tickets_open: parseInt(ticketsOpen.count),
-      total_views: parseInt(views.total),
-      total_users: parseInt(users.count),
+      listings_active: toInt(active.count),
+      listings_sold: toInt(sold.count),
+      tickets_open: toInt(ticketsOpen.count),
+      total_views: toInt(views.total),
+      total_users: toInt(users.count),
       avg_price: Math.round(parseFloat(avgPrice.avg)),
-      listings_month: parseInt(monthListings.count),
-      revenue_month: parseInt(monthRevenue.total),
+      listings_month: toInt(monthListings.count),
+      revenue_month: toInt(monthRevenue.total),
       recent_activity: activityRes.rows.map(a => ({
         ...a,
         action_label: `${a.user_name || 'System'}: ${ACTION_LABELS[a.action] || a.action}`,
@@ -118,7 +122,7 @@ router.get('/', requireAuth, requireRole('inhaber'), async (req, res) => {
 router.get('/notifications', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
   try {
     const userId = req.user.id;
-    const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
+    const isAdmin = isAdminUser(req.user);
     
     const result = await pool.query(
       isAdmin 
@@ -127,7 +131,7 @@ router.get('/notifications', requireAuth, requireRole('mitarbeiter'), async (req
       isAdmin ? [] : [userId]
     );
     
-    res.json({ open_tickets: parseInt(result.rows[0].count) });
+    res.json({ open_tickets: toInt(result.rows[0].count) });
   } catch (err) {
     res.status(500).json({ error: 'Fehler.' });
   }
@@ -170,7 +174,7 @@ router.get('/notifications/stream', requireAuth, requireRole('mitarbeiter'), (re
 router.get('/dashboard', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
   try {
     const userId = req.user.id;
-    const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
+    const isAdmin = isAdminUser(req.user);
 
     const q = (sql, params = []) => pool.query(sql, params).then(r => r.rows[0]);
 
@@ -216,18 +220,18 @@ router.get('/dashboard', requireAuth, requireRole('mitarbeiter'), async (req, re
     };
 
     res.json({
-      active_listings: parseInt(listings.count),
-      open_tickets: parseInt(tickets.count),
-      monthly_sales: parseInt(sales.count),
-      monthly_views: parseInt(views.total),
-      vault_balance: parseInt(vaultRes.rows[0].total),
+      active_listings: toInt(listings.count),
+      open_tickets: toInt(tickets.count),
+      monthly_sales: toInt(sales.count),
+      monthly_views: toInt(views.total),
+      vault_balance: toInt(vaultRes.rows[0].total),
       top_vehicles: topVehicles.rows,
       recent_activity: activityRes.rows.map(a => ({
         description: `${a.user_name||'System'} ${ACTION_LABELS[a.action]||a.action}`,
         time: new Date(a.created_at).toLocaleString('de-DE'),
         action: a.action,
       })),
-      total_users: isAdmin ? parseInt(usersCount.count) : undefined,
+      total_users: isAdmin ? toInt(usersCount.count) : undefined,
     });
   } catch (err) {
     console.error('Dashboard stats error:', err);
@@ -261,8 +265,8 @@ router.get('/leaderboard', requireAuth, requireRole('inhaber'), async (req, res)
 
     res.json(result.rows.map(r => ({
       ...r,
-      sales_count: parseInt(r.sales_count),
-      total_revenue: parseInt(r.total_revenue || 0),
+      sales_count: toInt(r.sales_count),
+      total_revenue: toInt(r.total_revenue || 0),
       avg_price: Math.round(parseFloat(r.avg_price || 0))
     })));
   } catch (err) {

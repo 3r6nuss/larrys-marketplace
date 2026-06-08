@@ -3,8 +3,24 @@ import pool from '../db.js';
 import { requireAuth, requireRole, logAction, checkRateLimit } from '../middleware/auth.js';
 import notificationEvents from '../events.js';
 import { sendDM, createEmbed } from '../discord-bot.js';
+import { hasDiscordNotificationsEnabled, toId, toInt, userHasRole } from '../lib/route-helpers.js';
 
 const router = Router();
+const STAFF_ROLES = new Set(['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter']);
+const MANAGEMENT_ROLES = new Set(['superadmin', 'stv_admin', 'inhaber']);
+
+function isStaffUser(user) {
+  return userHasRole(user, STAFF_ROLES);
+}
+
+function isManagementUser(user) {
+  return userHasRole(user, MANAGEMENT_ROLES);
+}
+
+async function getTicketById(id) {
+  const result = await pool.query('SELECT * FROM tickets WHERE id = ?', [id]);
+  return result.rows[0] || null;
+}
 
 /**
  * POST /api/tickets
@@ -88,7 +104,7 @@ router.post('/', requireAuth, async (req, res) => {
  */
 router.get('/', requireAuth, async (req, res) => {
   const { status, assigned_to, show_closed } = req.query;
-  const isStaff = ['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter'].includes(req.user.role);
+  const isStaff = isStaffUser(req.user);
 
   let where = isStaff ? '' : 'WHERE t.customer_id = ?';
   let params = isStaff ? [] : [req.user.id];
@@ -133,7 +149,7 @@ router.get('/', requireAuth, async (req, res) => {
  */
 router.get('/:id', requireAuth, async (req, res) => {
   try {
-    const isStaff = ['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter'].includes(req.user.role);
+    const isStaff = isStaffUser(req.user);
 
     const ticketRes = await pool.query(
       `SELECT t.*,
@@ -212,11 +228,10 @@ router.post('/:id/messages', requireAuth, async (req, res) => {
   if (!message?.trim()) return res.status(400).json({ error: 'Nachricht darf nicht leer sein.' });
 
   try {
-    const isStaff = ['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter'].includes(req.user.role);
-    const ticket = await pool.query('SELECT * FROM tickets WHERE id = ?', [req.params.id]);
-    if (ticket.rows.length === 0) return res.status(404).json({ error: 'Ticket nicht gefunden.' });
+    const isStaff = isStaffUser(req.user);
+    const t = await getTicketById(req.params.id);
+    if (!t) return res.status(404).json({ error: 'Ticket nicht gefunden.' });
 
-    const t = ticket.rows[0];
     if (!isStaff && t.customer_id !== req.user.id) {
       return res.status(403).json({ error: 'Keine Berechtigung.' });
     }
@@ -241,7 +256,7 @@ router.post('/:id/messages', requireAuth, async (req, res) => {
       const targetUserId = isStaff ? t.customer_id : (t.assigned_to || null);
       if (targetUserId) {
         const targetRes = await pool.query("SELECT discord_id, discord_notifications FROM users WHERE id = ?", [targetUserId]);
-        if (targetRes.rows.length > 0 && (targetRes.rows[0].discord_notifications == 1 || targetRes.rows[0].discord_notifications === true)) {
+        if (targetRes.rows.length > 0 && hasDiscordNotificationsEnabled(targetRes.rows[0])) {
           const embed = createEmbed()
             .setTitle(`💬 Neue Nachricht in Ticket #${t.id}`)
             .setDescription(`**${req.user.display_name || req.user.username || 'Benutzer'}**: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`)
@@ -269,14 +284,13 @@ router.put('/:id/status', requireAuth, async (req, res) => {
   if (!valid.includes(status)) return res.status(400).json({ error: 'Ungültiger Status.' });
 
   try {
-    const ticketRes = await pool.query('SELECT * FROM tickets WHERE id = ?', [req.params.id]);
-    if (ticketRes.rows.length === 0) return res.status(404).json({ error: 'Nicht gefunden.' });
-    const ticket = ticketRes.rows[0];
+    const ticket = await getTicketById(req.params.id);
+    if (!ticket) return res.status(404).json({ error: 'Nicht gefunden.' });
 
     const isCustomer = ticket.customer_id === req.user.id;
     const isAssigned = ticket.assigned_to === req.user.id;
-    const isStaff = ['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter'].includes(req.user.role);
-    const isManagement = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
+    const isStaff = isStaffUser(req.user);
+    const isManagement = isManagementUser(req.user);
 
     let allowed = false;
 
@@ -318,7 +332,7 @@ router.put('/:id/status', requireAuth, async (req, res) => {
       [status, assignedTo, req.params.id]
     );
 
-    await logAction(req.user.id, 'ticket_status_changed', 'ticket', parseInt(req.params.id), {
+    await logAction(req.user.id, 'ticket_status_changed', 'ticket', toId(req.params.id), {
       old_status: ticket.status, new_status: status,
     }, req.ip);
 
@@ -329,7 +343,7 @@ router.put('/:id/status', requireAuth, async (req, res) => {
     try {
       if (ticket.customer_id) {
         const custRes = await pool.query("SELECT discord_id, discord_notifications FROM users WHERE id = ?", [ticket.customer_id]);
-        if (custRes.rows.length > 0 && (custRes.rows[0].discord_notifications == 1 || custRes.rows[0].discord_notifications === true)) {
+        if (custRes.rows.length > 0 && hasDiscordNotificationsEnabled(custRes.rows[0])) {
           const embed = createEmbed()
             .setTitle(`📋 Ticket Status Update`)
             .setDescription(`Dein Ticket #${req.params.id} ist nun: **${status}**`);
@@ -355,10 +369,9 @@ router.put('/:id/erp-status', requireAuth, async (req, res) => {
   if (!valid.includes(erp_status)) return res.status(400).json({ error: 'Ungültiger ERP-Status.' });
 
   try {
-    const isStaff = ['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter'].includes(req.user.role);
-    const ticketRes = await pool.query('SELECT * FROM tickets WHERE id = ?', [req.params.id]);
-    if (ticketRes.rows.length === 0) return res.status(404).json({ error: 'Ticket nicht gefunden.' });
-    const ticket = ticketRes.rows[0];
+    const isStaff = isStaffUser(req.user);
+    const ticket = await getTicketById(req.params.id);
+    if (!ticket) return res.status(404).json({ error: 'Ticket nicht gefunden.' });
 
     const isCustomer = ticket.customer_id === req.user.id;
     if (!isStaff && !isCustomer) return res.status(403).json({ error: 'Keine Berechtigung.' });
@@ -378,7 +391,7 @@ router.put('/:id/erp-status', requireAuth, async (req, res) => {
       );
     }
 
-    await logAction(req.user.id, 'ticket_erp_status_changed', 'ticket', parseInt(req.params.id), {
+    await logAction(req.user.id, 'ticket_erp_status_changed', 'ticket', toId(req.params.id), {
       old_status: ticket.erp_status, new_status: erp_status,
     }, req.ip);
 
@@ -399,9 +412,8 @@ router.post('/:id/contract', requireAuth, requireRole('mitarbeiter'), async (req
   if (!price || !payment_type) return res.status(400).json({ error: 'Preis und Zahlungsart erforderlich.' });
 
   try {
-    const ticketRes = await pool.query('SELECT * FROM tickets WHERE id = ?', [req.params.id]);
-    if (ticketRes.rows.length === 0) return res.status(404).json({ error: 'Ticket nicht gefunden.' });
-    const ticket = ticketRes.rows[0];
+    const ticket = await getTicketById(req.params.id);
+    if (!ticket) return res.status(404).json({ error: 'Ticket nicht gefunden.' });
 
     if (['completed', 'cancelled'].includes(ticket.status)) {
       return res.status(400).json({ error: 'Ticket ist bereits geschlossen.' });
@@ -414,7 +426,7 @@ router.post('/:id/contract', requireAuth, requireRole('mitarbeiter'), async (req
          contract_created_at = datetime('now'),
          updated_at = datetime('now')
        WHERE id = ?`,
-      [parseInt(price), payment_type, req.params.id]
+      [toInt(price), payment_type, req.params.id]
     );
 
     const systemMsg = `[SYSTEM_CONTRACT_CREATED] ${price} | ${payment_type}`;
@@ -423,7 +435,7 @@ router.post('/:id/contract', requireAuth, requireRole('mitarbeiter'), async (req
       [req.params.id, req.user.id, systemMsg]
     );
 
-    await logAction(req.user.id, 'ticket_contract_created', 'ticket', parseInt(req.params.id), {
+    await logAction(req.user.id, 'ticket_contract_created', 'ticket', toId(req.params.id), {
       price, payment_type,
     }, req.ip);
 
@@ -441,9 +453,8 @@ router.post('/:id/contract', requireAuth, requireRole('mitarbeiter'), async (req
  */
 router.delete('/:id/contract', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
   try {
-    const ticketRes = await pool.query('SELECT * FROM tickets WHERE id = ?', [req.params.id]);
-    if (ticketRes.rows.length === 0) return res.status(404).json({ error: 'Ticket nicht gefunden.' });
-    const ticket = ticketRes.rows[0];
+    const ticket = await getTicketById(req.params.id);
+    if (!ticket) return res.status(404).json({ error: 'Ticket nicht gefunden.' });
 
     if (['completed', 'cancelled'].includes(ticket.status)) {
       return res.status(400).json({ error: 'Ticket ist bereits geschlossen.' });
@@ -465,7 +476,7 @@ router.delete('/:id/contract', requireAuth, requireRole('mitarbeiter'), async (r
       [req.params.id, req.user.id, systemMsg]
     );
 
-    await logAction(req.user.id, 'ticket_contract_cancelled', 'ticket', parseInt(req.params.id), {}, req.ip);
+    await logAction(req.user.id, 'ticket_contract_cancelled', 'ticket', toId(req.params.id), {}, req.ip);
 
     notificationEvents.emit('update');
     res.json({ success: true });

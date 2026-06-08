@@ -4,6 +4,24 @@ import { requireAuth, requireRole, logAction, checkRateLimit } from '../middlewa
 import notificationEvents from '../events.js';
 
 const router = Router();
+const STAFF_ROLES = new Set(['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter']);
+
+function isStaffUser(user) {
+  return STAFF_ROLES.has(user?.role);
+}
+
+async function getRequestById(id) {
+  const result = await pool.query('SELECT * FROM vehicle_requests WHERE id = ?', [id]);
+  return result.rows[0] || null;
+}
+
+function toCount(value) {
+  return Number.parseInt(value, 10) || 0;
+}
+
+function toId(value) {
+  return Number.parseInt(value, 10);
+}
 
 /**
  * POST /api/requests
@@ -56,7 +74,7 @@ router.post('/', requireAuth, async (req, res) => {
  * Customers see their own, staff sees all.
  */
 router.get('/', requireAuth, async (req, res) => {
-  const isStaff = ['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter'].includes(req.user.role);
+  const isStaff = isStaffUser(req.user);
   const { status } = req.query;
 
   let where = isStaff ? '' : 'WHERE vr.customer_id = ?';
@@ -98,9 +116,9 @@ router.put('/:id/match', requireAuth, requireRole('mitarbeiter'), async (req, re
   if (!listing_id) return res.status(400).json({ error: 'Listing-ID erforderlich.' });
 
   try {
-    const request = await pool.query('SELECT * FROM vehicle_requests WHERE id = ?', [req.params.id]);
-    if (!request.rows[0]) return res.status(404).json({ error: 'Anfrage nicht gefunden.' });
-    if (request.rows[0].status !== 'open') return res.status(400).json({ error: 'Anfrage ist nicht mehr offen.' });
+    const request = await getRequestById(req.params.id);
+    if (!request) return res.status(404).json({ error: 'Anfrage nicht gefunden.' });
+    if (request.status !== 'open') return res.status(400).json({ error: 'Anfrage ist nicht mehr offen.' });
 
     // Verify listing exists and is available
     const listing = await pool.query('SELECT * FROM listings WHERE id = ? AND status = ?', [listing_id, 'available']);
@@ -111,7 +129,7 @@ router.put('/:id/match', requireAuth, requireRole('mitarbeiter'), async (req, re
       [listing_id, req.user.id, req.params.id]
     );
 
-    await logAction(req.user.id, 'vehicle_request_matched', 'vehicle_request', parseInt(req.params.id), { listing_id }, req.ip);
+    await logAction(req.user.id, 'vehicle_request_matched', 'vehicle_request', toId(req.params.id), { listing_id }, req.ip);
     notificationEvents.emit('update');
 
     res.json({ success: true });
@@ -127,14 +145,14 @@ router.put('/:id/match', requireAuth, requireRole('mitarbeiter'), async (req, re
  */
 router.put('/:id/cancel', requireAuth, async (req, res) => {
   try {
-    const request = await pool.query('SELECT * FROM vehicle_requests WHERE id = ?', [req.params.id]);
-    if (!request.rows[0]) return res.status(404).json({ error: 'Anfrage nicht gefunden.' });
+    const request = await getRequestById(req.params.id);
+    if (!request) return res.status(404).json({ error: 'Anfrage nicht gefunden.' });
 
-    const isOwner = request.rows[0].customer_id === req.user.id;
-    const isStaff = ['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter'].includes(req.user.role);
+    const isOwner = request.customer_id === req.user.id;
+    const isStaff = isStaffUser(req.user);
     if (!isOwner && !isStaff) return res.status(403).json({ error: 'Keine Berechtigung.' });
 
-    if (['cancelled'].includes(request.rows[0].status)) {
+    if (request.status === 'cancelled') {
       return res.status(400).json({ error: 'Anfrage ist bereits storniert.' });
     }
 
@@ -143,7 +161,7 @@ router.put('/:id/cancel', requireAuth, async (req, res) => {
       [req.params.id]
     );
 
-    await logAction(req.user.id, 'vehicle_request_cancelled', 'vehicle_request', parseInt(req.params.id), {}, req.ip);
+    await logAction(req.user.id, 'vehicle_request_cancelled', 'vehicle_request', toId(req.params.id), {}, req.ip);
 
     res.json({ success: true });
   } catch (err) {
@@ -158,11 +176,11 @@ router.put('/:id/cancel', requireAuth, async (req, res) => {
  */
 router.get('/count', requireAuth, async (req, res) => {
   try {
-    const isStaff = ['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter'].includes(req.user.role);
+    const isStaff = isStaffUser(req.user);
 
     if (isStaff) {
       const result = await pool.query(`SELECT COUNT(*) as count FROM vehicle_requests WHERE status = 'open'`);
-      res.json({ open_requests: parseInt(result.rows[0].count) });
+      res.json({ open_requests: toCount(result.rows[0].count) });
     } else {
       const open = await pool.query(
         `SELECT COUNT(*) as count FROM vehicle_requests WHERE customer_id = ? AND status = 'open'`,
@@ -173,8 +191,8 @@ router.get('/count', requireAuth, async (req, res) => {
         [req.user.id]
       );
       res.json({
-        open_requests: parseInt(open.rows[0].count),
-        found_requests: parseInt(found.rows[0].count),
+        open_requests: toCount(open.rows[0].count),
+        found_requests: toCount(found.rows[0].count),
       });
     }
   } catch (err) {

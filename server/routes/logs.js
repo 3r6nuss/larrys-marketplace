@@ -3,6 +3,11 @@ import pool from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = Router();
+const toInt = (value, fallback = 0) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? fallback : parsed;
+};
+const hasText = (value) => typeof value === 'string' && value.trim().length > 0;
 
 /**
  * GET /api/logs
@@ -11,11 +16,13 @@ const router = Router();
  */
 router.get('/', requireAuth, requireRole('inhaber'), async (req, res) => {
   const { action, search, role_type, limit = 50, offset = 0 } = req.query;
+  const safeLimit = toInt(limit, 50);
+  const safeOffset = toInt(offset, 0);
 
   let where = [];
   let params = [];
 
-  if (action) { where.push('al.action = ?'); params.push(action); }
+  if (hasText(action)) { where.push('al.action = ?'); params.push(action); }
   
   if (role_type === 'staff') {
     where.push("u.role IN ('mitarbeiter', 'inhaber', 'stv_admin', 'superadmin')");
@@ -23,7 +30,7 @@ router.get('/', requireAuth, requireRole('inhaber'), async (req, res) => {
     where.push("u.role = 'kunde'");
   }
 
-  if (search) {
+  if (hasText(search)) {
     where.push('(u.display_name LIKE ? OR u.username LIKE ? OR al.action LIKE ?)');
     const q = `%${search}%`;
     params.push(q, q, q);
@@ -47,15 +54,15 @@ router.get('/', requireAuth, requireRole('inhaber'), async (req, res) => {
     `;
 
     const [result, countResult] = await Promise.all([
-      pool.query(sql, [...params, parseInt(limit), parseInt(offset)]),
+      pool.query(sql, [...params, safeLimit, safeOffset]),
       pool.query(countSql, params),
     ]);
 
     res.json({
       logs: result.rows,
-      total: parseInt(countResult.rows[0]?.total || 0),
-      limit: parseInt(limit),
-      offset: parseInt(offset),
+      total: toInt(countResult.rows[0]?.total, 0),
+      limit: safeLimit,
+      offset: safeOffset,
     });
   } catch (err) {
     console.error('Get logs error:', err);

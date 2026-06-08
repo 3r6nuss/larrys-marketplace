@@ -8,28 +8,40 @@ const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
 const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || 'http://localhost:5173/api/auth/discord/callback';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const ADMIN_ROLES = ['superadmin', 'stv_admin', 'inhaber'];
+const toId = (value) => Number.parseInt(value, 10);
+
+const hasAdminRole = (role) => ADMIN_ROLES.includes(role);
+
+const getUserById = async (id) => {
+  if (!id) return null;
+  const result = await db.query('SELECT * FROM users WHERE id = ?', [id]);
+  return result.rows[0] || null;
+};
+
+const getUserRoleById = async (id) => {
+  if (!id) return null;
+  const result = await db.query('SELECT role FROM users WHERE id = ?', [id]);
+  return result.rows[0]?.role || null;
+};
 
 // Hilfsfunktion zur Überprüfung, ob der Benutzer ein berechtigter Admin (Superadmin, Stv. Admin, Inhaber) ist
 const isAllowedAdmin = async (req) => {
   if (!req.session?.userId) return false;
   
   // Aktuelle Benutzerrolle prüfen
-  const res = await db.query('SELECT role FROM users WHERE id = ?', [req.session.userId]);
-  if (res.rows.length === 0) return false;
-  const currentRole = res.rows[0].role;
+  const currentRole = await getUserRoleById(req.session.userId);
+  if (!currentRole) return false;
   
-  if (['superadmin', 'stv_admin', 'inhaber'].includes(currentRole)) {
+  if (hasAdminRole(currentRole)) {
     return true;
   }
   
   // Wenn der Benutzer gerade impersoniert, prüfen wir die Original-Rolle
   if (req.session.originalUserId) {
-    const origRes = await db.query('SELECT role FROM users WHERE id = ?', [req.session.originalUserId]);
-    if (origRes.rows.length > 0) {
-      const origRole = origRes.rows[0].role;
-      if (['superadmin', 'stv_admin', 'inhaber'].includes(origRole)) {
-        return true;
-      }
+    const origRole = await getUserRoleById(req.session.originalUserId);
+    if (origRole && hasAdminRole(origRole)) {
+      return true;
     }
   }
   
@@ -130,7 +142,7 @@ router.delete('/virtual-users/:id', async (req, res) => {
 
   try {
     // Aktive Session darf sich nicht selbst löschen
-    if (parseInt(id) === req.session.userId) {
+    if (toId(id) === req.session.userId) {
       return res.status(400).json({ error: 'Der aktuell aktive Account kann nicht gelöscht werden.' });
     }
 
@@ -162,20 +174,19 @@ router.post('/impersonate', async (req, res) => {
   }
 
   // Aktuellen Benutzer holen
-  const currentUserRes = await db.query('SELECT * FROM users WHERE id = ?', [req.session.userId]);
-  if (currentUserRes.rows.length === 0) {
+  const currentUser = await getUserById(req.session.userId);
+  if (!currentUser) {
     return res.status(401).json({ error: 'Benutzer nicht gefunden.' });
   }
-  const currentUser = currentUserRes.rows[0];
 
   let realAdminId = null;
 
   // Prüfen, ob der aktuelle Benutzer ein Admin ist oder ursprünglich ein Admin war
-  if (['superadmin', 'stv_admin', 'inhaber'].includes(currentUser.role)) {
+  if (hasAdminRole(currentUser.role)) {
     realAdminId = currentUser.id;
   } else if (req.session.originalUserId) {
-    const originalUserRes = await db.query('SELECT * FROM users WHERE id = ?', [req.session.originalUserId]);
-    if (originalUserRes.rows.length > 0 && ['superadmin', 'stv_admin', 'inhaber'].includes(originalUserRes.rows[0].role)) {
+    const originalUser = await getUserById(req.session.originalUserId);
+    if (originalUser && hasAdminRole(originalUser.role)) {
       realAdminId = req.session.originalUserId;
     }
   }
@@ -190,7 +201,7 @@ router.post('/impersonate', async (req, res) => {
   if (!targetUserId || targetUserId === realAdminId) {
     req.session.userId = realAdminId;
     delete req.session.originalUserId;
-    const adminUser = (await db.query('SELECT * FROM users WHERE id = ?', [realAdminId])).rows[0];
+    const adminUser = await getUserById(realAdminId);
     await logAction(realAdminId, 'switch_back_admin', 'user', realAdminId, {}, req.ip);
     
     req.session.save((err) => {
@@ -204,11 +215,10 @@ router.post('/impersonate', async (req, res) => {
   }
 
   // Fall 2: In einen virtuellen Account wechseln
-  const targetUserRes = await db.query('SELECT * FROM users WHERE id = ?', [targetUserId]);
-  if (targetUserRes.rows.length === 0) {
+  const targetUser = await getUserById(targetUserId);
+  if (!targetUser) {
     return res.status(404).json({ error: 'Zielbenutzer nicht gefunden.' });
   }
-  const targetUser = targetUserRes.rows[0];
 
   // Verifizieren, dass der Ziel-Account virtuell ist
   if (!targetUser.discord_id || !targetUser.discord_id.startsWith('virtual_')) {

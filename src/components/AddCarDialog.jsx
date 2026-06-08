@@ -1,50 +1,88 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { categories, tuningParts } from '../data/mockCars';
 import './AddCarDialog.css';
 
-const AddCarDialog = ({ isOpen, onClose, onAdd, defaultUser }) => {
- const [formData, setFormData] = useState({
- seller: '',
+function createInitialFormData(defaultUser) {
+ return {
+ seller: defaultUser?.name || '',
  brand: '',
  model: '',
  plate: '',
- phone: '',
+ phone: defaultUser?.phone || '',
  price: '',
  category: '',
  status: 'available',
  tuning: [],
  imageFile: null,
- imagePreview: null
- });
+ imagePreview: null,
+ };
+}
+
+function dataURLtoFile(dataUrl, filename) {
+ const arr = dataUrl.split(',');
+ const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+ const bstr = atob(arr[arr.length - 1]);
+ let n = bstr.length;
+ const u8arr = new Uint8Array(n);
+
+ while (n--) {
+ u8arr[n] = bstr.charCodeAt(n);
+ }
+
+ return new File([u8arr], filename, { type: mime });
+}
+
+function buildCarFormData(formData) {
+ const fd = new FormData();
+ fd.append('seller', formData.seller);
+ fd.append('brand', formData.brand);
+ fd.append('model', formData.model);
+ fd.append('plate', formData.plate);
+ fd.append('phone', formData.phone);
+
+ const numericPrice = parseInt(formData.price.replace(/[^0-9]/g, ''), 10) || 0;
+ fd.append('price', numericPrice.toString());
+
+ const hasDollar = formData.price.includes('$');
+ const onRequest = formData.price.toLowerCase().includes('auf anfrage');
+ const priceLabel = hasDollar || onRequest ? formData.price : `$ ${formData.price}`;
+ fd.append('price_label', priceLabel);
+
+ fd.append('category', formData.category);
+ fd.append('status', formData.status);
+ fd.append('tuning', JSON.stringify(formData.tuning));
+
+ if (formData.imageFile) {
+ fd.append('image', formData.imageFile);
+ }
+
+ return fd;
+}
+
+const AddCarDialog = ({ isOpen, onClose, onAdd, defaultUser }) => {
+ const [formData, setFormData] = useState(createInitialFormData(defaultUser));
  const [isDragActive, setIsDragActive] = useState(false);
  const [isSubmitting, setIsSubmitting] = useState(false);
  const [videoStream, setVideoStream] = useState(null);
  const videoRef = useRef(null);
 
+ const stopCapture = useCallback(() => {
+ if (videoStream) {
+ videoStream.getTracks().forEach(t => t.stop());
+ setVideoStream(null);
+ }
+ }, [videoStream]);
+
  useEffect(() => {
  if (isOpen) {
- setFormData({ 
- seller: defaultUser?.name || '', 
- brand: '', 
- model: '', 
- plate: '', 
- phone: defaultUser?.phone || '', 
- price: '', 
- category: '', 
- status: 'available', 
- tuning: [], 
- imageFile: null,
- imagePreview: null
- });
+ setFormData(createInitialFormData(defaultUser));
  setIsDragActive(false);
   setIsSubmitting(false);
   }
   return () => {
-    if (videoStream) {
-      videoStream.getTracks().forEach(t => t.stop());
-    }
+    stopCapture();
   };
- }, [isOpen, defaultUser]);
+ }, [isOpen, defaultUser, stopCapture]);
 
  const startCapture = async () => {
    try {
@@ -62,25 +100,6 @@ const AddCarDialog = ({ isOpen, onClose, onAdd, defaultUser }) => {
    } catch (err) {
      console.error("Error starting screen capture:", err);
    }
- };
-
- const stopCapture = () => {
-   if (videoStream) {
-     videoStream.getTracks().forEach(t => t.stop());
-     setVideoStream(null);
-   }
- };
-
- const dataURLtoFile = (dataurl, filename) => {
-   let arr = dataurl.split(','),
-       mime = arr[0].match(/:(.*?);/)[1],
-       bstr = atob(arr[arr.length - 1]), 
-       n = bstr.length, 
-       u8arr = new Uint8Array(n);
-   while(n--){
-       u8arr[n] = bstr.charCodeAt(n);
-   }
-   return new File([u8arr], filename, {type:mime});
  };
 
  const takePhoto = () => {
@@ -157,31 +176,8 @@ const AddCarDialog = ({ isOpen, onClose, onAdd, defaultUser }) => {
  const handleSubmit = async (e) => {
  e.preventDefault();
  setIsSubmitting(true);
- 
- // Build FormData for multipart upload
- const fd = new FormData();
- fd.append('seller', formData.seller);
- fd.append('brand', formData.brand);
- fd.append('model', formData.model);
- fd.append('plate', formData.plate);
- fd.append('phone', formData.phone);
- 
- // Parse price
- const numericPrice = parseInt(formData.price.replace(/[^0-9]/g, ''), 10) || 0;
- fd.append('price', numericPrice.toString());
- 
- const priceLabel = formData.price.includes('$') || formData.price.toLowerCase().includes('auf anfrage')
- ? formData.price
- : `$ ${formData.price}`;
- fd.append('price_label', priceLabel);
- 
- fd.append('category', formData.category);
- fd.append('status', formData.status);
- fd.append('tuning', JSON.stringify(formData.tuning));
- 
- if (formData.imageFile) {
- fd.append('image', formData.imageFile);
- }
+
+ const fd = buildCarFormData(formData);
 
  try {
  await onAdd(fd);

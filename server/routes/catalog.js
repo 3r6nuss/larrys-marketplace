@@ -3,6 +3,8 @@ import pool from '../db.js';
 import { requireAuth, requireRole, logAction } from '../middleware/auth.js';
 
 const router = Router();
+const toInt = (value) => Number.parseInt(value, 10) || 0;
+const hasText = (value) => typeof value === 'string' && value.trim().length > 0;
 
 /**
  * GET /api/catalog/vehicles
@@ -14,7 +16,7 @@ router.get('/vehicles', async (req, res) => {
   let catWhere = '';
   let listWhere = '';
   let params = [];
-  if (q) {
+  if (hasText(q)) {
     catWhere = 'WHERE (brand LIKE ? OR model LIKE ?)';
     listWhere = 'WHERE (brand LIKE ? OR model LIKE ?)';
     params = [`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`];
@@ -46,8 +48,8 @@ router.get('/', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
   let where = [];
   let params = [];
 
-  if (q) { where.push('(brand LIKE ? OR model LIKE ?)'); params.push(`%${q}%`, `%${q}%`); }
-  if (brand) { where.push('brand = ?'); params.push(brand); }
+  if (hasText(q)) { where.push('(brand LIKE ? OR model LIKE ?)'); params.push(`%${q}%`, `%${q}%`); }
+  if (hasText(brand)) { where.push('brand = ?'); params.push(brand); }
 
   const sql = `SELECT * FROM vehicle_catalog ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY brand ASC, model ASC`;
   try {
@@ -78,7 +80,7 @@ router.get('/stats', requireAuth, requireRole('mitarbeiter'), async (req, res) =
   try {
     const total = await pool.query('SELECT COUNT(*) as count FROM vehicle_catalog');
     const brands = await pool.query('SELECT COUNT(DISTINCT brand) as count FROM vehicle_catalog');
-    res.json({ total: parseInt(total.rows[0].count), brands: parseInt(brands.rows[0].count) });
+    res.json({ total: toInt(total.rows[0].count), brands: toInt(brands.rows[0].count) });
   } catch (err) {
     res.status(500).json({ error: 'Fehler.' });
   }

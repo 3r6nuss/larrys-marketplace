@@ -4,6 +4,16 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 
+function pushFieldUpdate({ fields, params, idx, key, value }) {
+  if (value === undefined) {
+    return idx;
+  }
+
+  fields.push(`${key} = $${idx}`);
+  params.push(value);
+  return idx + 1;
+}
+
 /**
  * GET /api/employees
  * List all employees.
@@ -53,9 +63,9 @@ router.put('/:id', requireAuth, async (req, res) => {
     const params = [];
     let idx = 1;
 
-    if (name !== undefined) { fields.push(`name = $${idx++}`); params.push(name); }
-    if (role !== undefined) { fields.push(`role = $${idx++}`); params.push(role); }
-    if (phone !== undefined) { fields.push(`phone = $${idx++}`); params.push(phone); }
+    idx = pushFieldUpdate({ fields, params, idx, key: 'name', value: name });
+    idx = pushFieldUpdate({ fields, params, idx, key: 'role', value: role });
+    idx = pushFieldUpdate({ fields, params, idx, key: 'phone', value: phone });
 
     if (fields.length === 0) {
       return res.status(400).json({ error: 'Keine Felder zum Aktualisieren.' });

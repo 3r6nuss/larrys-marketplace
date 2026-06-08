@@ -4,8 +4,23 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import pool from '../db.js';
 import { requireAuth, optionalAuth, requireRole, logAction } from '../middleware/auth.js';
+import { canManageOwnedResource, toCount, toId, toInt, userHasRole } from '../lib/route-helpers.js';
 
 const router = Router();
+const ADMIN_ROLES = new Set(['superadmin', 'stv_admin', 'inhaber']);
+const STAFF_ROLES = new Set(['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter']);
+
+const isStaffUser = (user) => userHasRole(user, STAFF_ROLES);
+
+const getListingById = async (listingId) => {
+  const result = await pool.query('SELECT * FROM listings WHERE id = ?', [listingId]);
+  return result.rows[0] || null;
+};
+
+const canManageListing = (listing, user) => {
+  if (!listing || !user) return false;
+  return canManageOwnedResource(listing.seller_id, user, ADMIN_ROLES);
+};
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, path.join(process.cwd(), 'uploads')),
@@ -76,7 +91,7 @@ router.get('/', optionalAuth, async (req, res) => {
                ORDER BY l.listed_at DESC`;
   try {
     const result = await pool.query(sql, params);
-    const isMitarbeiter = req.user && ['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter'].includes(req.user.role);
+    const isMitarbeiter = isStaffUser(req.user);
 
     // Fetch image counts and cover images for all listings
     const listingIds = result.rows.map(r => r.id);
@@ -122,7 +137,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
     await pool.query('UPDATE listings SET view_count = view_count + 1 WHERE id = ?', [req.params.id]);
 
     const listing = result.rows[0];
-    const isMitarbeiter = req.user && ['superadmin', 'stv_admin', 'inhaber', 'mitarbeiter'].includes(req.user.role);
+    const isMitarbeiter = isStaffUser(req.user);
 
     // Fetch all images
     const imagesResult = await pool.query(
@@ -164,7 +179,7 @@ router.post('/', requireAuth, requireRole('mitarbeiter'), upload.single('image')
     await pool.query(
       "INSERT INTO listings (catalog_id, seller_id, brand, model, plate, category, custom_price, discount_pct, notes, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       [catalog_id || null, req.user.id, brand, model, plate || null, category || null,
-       custom_price ? parseInt(custom_price) : null, discount_pct ? parseFloat(discount_pct) : 0, notes || null, imagePath]
+       custom_price ? toInt(custom_price) : null, discount_pct ? parseFloat(discount_pct) : 0, notes || null, imagePath]
     );
     const created = await pool.query(
       'SELECT * FROM listings WHERE seller_id = ? AND brand = ? AND model = ? ORDER BY listed_at DESC LIMIT 1',
@@ -186,7 +201,7 @@ router.post('/', requireAuth, requireRole('mitarbeiter'), upload.single('image')
       if (p) allImages.push(p);
     }
 
-    const coverIdx = req.body.cover_index !== undefined ? parseInt(req.body.cover_index) : 0;
+    const coverIdx = req.body.cover_index !== undefined ? toInt(req.body.cover_index) : 0;
 
     for (let i = 0; i < allImages.length; i++) {
       await pool.query(
@@ -231,12 +246,9 @@ router.post('/', requireAuth, requireRole('mitarbeiter'), upload.single('image')
 
 /** PUT /api/listings/:id */
 router.put('/:id', requireAuth, requireRole('mitarbeiter'), upload.single('image'), async (req, res) => {
-  const listing = await pool.query('SELECT * FROM listings WHERE id = ?', [req.params.id]);
-  if (!listing.rows[0]) return res.status(404).json({ error: 'Nicht gefunden.' });
-
-  const isOwner = listing.rows[0].seller_id === req.user.id;
-  const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
-  if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Keine Berechtigung.' });
+  const listing = await getListingById(req.params.id);
+  if (!listing) return res.status(404).json({ error: 'Nicht gefunden.' });
+  if (!canManageListing(listing, req.user)) return res.status(403).json({ error: 'Keine Berechtigung.' });
 
   const { brand, model, plate, category, status, custom_price, discount_pct, notes, image_base64 } = req.body;
 
@@ -253,7 +265,7 @@ router.put('/:id', requireAuth, requireRole('mitarbeiter'), upload.single('image
   if (plate !== undefined) add('plate', plate);
   if (category !== undefined) add('category', category);
   if (status !== undefined) add('status', status);
-  if (custom_price !== undefined) add('custom_price', parseInt(custom_price));
+  if (custom_price !== undefined) add('custom_price', toInt(custom_price));
   if (discount_pct !== undefined) add('discount_pct', parseFloat(discount_pct));
   if (notes !== undefined) add('notes', notes);
   if (imagePath !== undefined) add('image_path', imagePath);
@@ -264,7 +276,7 @@ router.put('/:id', requireAuth, requireRole('mitarbeiter'), upload.single('image
     await pool.query(`UPDATE listings SET ${sets.join(', ')} WHERE id = ?`, params);
     const updated = await pool.query('SELECT * FROM listings WHERE id = ?', [req.params.id]);
     const upRow = updated.rows[0];
-    await logAction(req.user.id, 'listing_updated', 'listing', parseInt(req.params.id), {
+    await logAction(req.user.id, 'listing_updated', 'listing', toId(req.params.id), {
       brand: upRow.brand,
       model: upRow.model,
       plate: upRow.plate,
@@ -287,17 +299,17 @@ router.put('/:id/sell', requireAuth, requireRole('mitarbeiter'), async (req, res
 
     await pool.query(
       "UPDATE listings SET status = 'sold', sold_at = datetime('now'), sold_by = ?, sold_to_name = ?, sold_price = ? WHERE id = ?",
-      [req.user.id, sold_to_name || null, sold_price ? parseInt(sold_price) : null, req.params.id]
+      [req.user.id, sold_to_name || null, sold_price ? toInt(sold_price) : null, req.params.id]
     );
 
-    if (on_behalf_of && parseInt(on_behalf_of) !== req.user.id && sold_price) {
+    if (on_behalf_of && toId(on_behalf_of) !== req.user.id && sold_price) {
       await pool.query(
         "INSERT INTO vault_entries (listing_id, owner_id, sold_by_id, amount, status) VALUES (?, ?, ?, ?, 'pending')",
-        [req.params.id, parseInt(on_behalf_of), req.user.id, parseInt(sold_price)]
+        [req.params.id, toId(on_behalf_of), req.user.id, toInt(sold_price)]
       );
     }
 
-    await logAction(req.user.id, 'listing_sold', 'listing', parseInt(req.params.id), { sold_to_name, sold_price }, req.ip);
+    await logAction(req.user.id, 'listing_sold', 'listing', toId(req.params.id), { sold_to_name, sold_price }, req.ip);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Fehler.' });
@@ -306,16 +318,13 @@ router.put('/:id/sell', requireAuth, requireRole('mitarbeiter'), async (req, res
 
 /** DELETE /api/listings/:id */
 router.delete('/:id', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
-  const listing = await pool.query('SELECT * FROM listings WHERE id = ?', [req.params.id]);
-  if (!listing.rows[0]) return res.status(404).json({ error: 'Nicht gefunden.' });
-
-  const isOwner = listing.rows[0].seller_id === req.user.id;
-  const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
-  if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Keine Berechtigung.' });
+  const listing = await getListingById(req.params.id);
+  if (!listing) return res.status(404).json({ error: 'Nicht gefunden.' });
+  if (!canManageListing(listing, req.user)) return res.status(403).json({ error: 'Keine Berechtigung.' });
 
   try {
     await pool.query('DELETE FROM listings WHERE id = ?', [req.params.id]);
-    await logAction(req.user.id, 'listing_deleted', 'listing', parseInt(req.params.id), { brand: listing.rows[0].brand, model: listing.rows[0].model }, req.ip);
+    await logAction(req.user.id, 'listing_deleted', 'listing', toId(req.params.id), { brand: listing.brand, model: listing.model }, req.ip);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Fehler.' });
@@ -325,28 +334,25 @@ router.delete('/:id', requireAuth, requireRole('mitarbeiter'), async (req, res) 
 /** PUT /api/listings/:id/feature — Toggle featured status */
 router.put('/:id/feature', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
   try {
-    const listing = await pool.query('SELECT * FROM listings WHERE id = ?', [req.params.id]);
-    if (!listing.rows[0]) return res.status(404).json({ error: 'Nicht gefunden.' });
+    const listing = await getListingById(req.params.id);
+    if (!listing) return res.status(404).json({ error: 'Nicht gefunden.' });
+    if (!canManageListing(listing, req.user)) return res.status(403).json({ error: 'Keine Berechtigung.' });
 
-    const isOwner = listing.rows[0].seller_id === req.user.id;
-    const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
-    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Keine Berechtigung.' });
-
-    const newValue = listing.rows[0].is_featured ? 0 : 1;
+    const newValue = listing.is_featured ? 0 : 1;
 
     // Check max 2 featured per seller
     if (newValue === 1) {
       const countRes = await pool.query(
         'SELECT COUNT(*) as count FROM listings WHERE seller_id = ? AND is_featured = 1',
-        [listing.rows[0].seller_id]
+        [listing.seller_id]
       );
-      if (parseInt(countRes.rows[0].count) >= 2) {
+      if (toCount(countRes.rows[0].count) >= 2) {
         return res.status(400).json({ error: 'Maximal 2 Fahrzeuge k\u00f6nnen als Featured markiert werden.' });
       }
     }
 
     await pool.query('UPDATE listings SET is_featured = ? WHERE id = ?', [newValue, req.params.id]);
-    await logAction(req.user.id, 'listing_updated', 'listing', parseInt(req.params.id), { is_featured: newValue }, req.ip);
+    await logAction(req.user.id, 'listing_updated', 'listing', toId(req.params.id), { is_featured: newValue }, req.ip);
     res.json({ success: true, is_featured: newValue });
   } catch (err) {
     console.error('Feature toggle error:', err);
@@ -359,16 +365,13 @@ router.put('/:id/feature', requireAuth, requireRole('mitarbeiter'), async (req, 
 /** POST /api/listings/:id/images — Upload image(s) to a listing */
 router.post('/:id/images', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
   try {
-    const listing = await pool.query('SELECT * FROM listings WHERE id = ?', [req.params.id]);
-    if (!listing.rows[0]) return res.status(404).json({ error: 'Nicht gefunden.' });
-
-    const isOwner = listing.rows[0].seller_id === req.user.id;
-    const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
-    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Keine Berechtigung.' });
+    const listing = await getListingById(req.params.id);
+    if (!listing) return res.status(404).json({ error: 'Nicht gefunden.' });
+    if (!canManageListing(listing, req.user)) return res.status(403).json({ error: 'Keine Berechtigung.' });
 
     // Check max 8 images
     const countRes = await pool.query('SELECT COUNT(*) as count FROM listing_images WHERE listing_id = ?', [req.params.id]);
-    const currentCount = parseInt(countRes.rows[0].count);
+    const currentCount = toCount(countRes.rows[0].count);
 
     const { image_base64 } = req.body;
     if (!image_base64) return res.status(400).json({ error: 'Kein Bild.' });
@@ -402,12 +405,9 @@ router.post('/:id/images', requireAuth, requireRole('mitarbeiter'), async (req, 
 /** DELETE /api/listings/:id/images/:imageId — Delete single image */
 router.delete('/:id/images/:imageId', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
   try {
-    const listing = await pool.query('SELECT * FROM listings WHERE id = ?', [req.params.id]);
-    if (!listing.rows[0]) return res.status(404).json({ error: 'Nicht gefunden.' });
-
-    const isOwner = listing.rows[0].seller_id === req.user.id;
-    const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
-    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Keine Berechtigung.' });
+    const listing = await getListingById(req.params.id);
+    if (!listing) return res.status(404).json({ error: 'Nicht gefunden.' });
+    if (!canManageListing(listing, req.user)) return res.status(403).json({ error: 'Keine Berechtigung.' });
 
     const image = await pool.query('SELECT * FROM listing_images WHERE id = ? AND listing_id = ?', [req.params.imageId, req.params.id]);
     if (!image.rows[0]) return res.status(404).json({ error: 'Bild nicht gefunden.' });
@@ -444,12 +444,9 @@ router.delete('/:id/images/:imageId', requireAuth, requireRole('mitarbeiter'), a
 /** PUT /api/listings/:id/images/:imageId/cover — Set as cover image */
 router.put('/:id/images/:imageId/cover', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
   try {
-    const listing = await pool.query('SELECT * FROM listings WHERE id = ?', [req.params.id]);
-    if (!listing.rows[0]) return res.status(404).json({ error: 'Nicht gefunden.' });
-
-    const isOwner = listing.rows[0].seller_id === req.user.id;
-    const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
-    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Keine Berechtigung.' });
+    const listing = await getListingById(req.params.id);
+    if (!listing) return res.status(404).json({ error: 'Nicht gefunden.' });
+    if (!canManageListing(listing, req.user)) return res.status(403).json({ error: 'Keine Berechtigung.' });
 
     // Unset all covers for this listing
     await pool.query('UPDATE listing_images SET is_cover = 0 WHERE listing_id = ?', [req.params.id]);
@@ -473,12 +470,9 @@ router.put('/:id/images/:imageId/cover', requireAuth, requireRole('mitarbeiter')
 /** PUT /api/listings/:id/images/reorder — Reorder images */
 router.put('/:id/images/reorder', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
   try {
-    const listing = await pool.query('SELECT * FROM listings WHERE id = ?', [req.params.id]);
-    if (!listing.rows[0]) return res.status(404).json({ error: 'Nicht gefunden.' });
-
-    const isOwner = listing.rows[0].seller_id === req.user.id;
-    const isAdmin = ['superadmin', 'stv_admin', 'inhaber'].includes(req.user.role);
-    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Keine Berechtigung.' });
+    const listing = await getListingById(req.params.id);
+    if (!listing) return res.status(404).json({ error: 'Nicht gefunden.' });
+    if (!canManageListing(listing, req.user)) return res.status(403).json({ error: 'Keine Berechtigung.' });
 
     const { order } = req.body; // array of image IDs in new order
     if (!Array.isArray(order)) return res.status(400).json({ error: 'Ung\u00fcltiges Format.' });

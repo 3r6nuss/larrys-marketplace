@@ -6,6 +6,40 @@ import pool from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
+const toInt = (value) => Number.parseInt(value, 10);
+
+async function getCarById(carId) {
+  const result = await pool.query('SELECT * FROM cars WHERE id = $1', [carId]);
+  return result.rows[0] || null;
+}
+
+function getUploadedImagePath(file) {
+  return file ? `/uploads/${file.filename}` : null;
+}
+
+function parseTuningInput(tuning, fallback) {
+  if (tuning === undefined || tuning === null) {
+    return fallback;
+  }
+
+  try {
+    return typeof tuning === 'string' ? tuning : JSON.stringify(tuning);
+  } catch {
+    return fallback;
+  }
+}
+
+function pushFieldUpdate({ fields, params, idx, key, value, transform, cast }) {
+  if (value === undefined) {
+    return idx;
+  }
+
+  const paramValue = transform ? transform(value) : value;
+  const castSuffix = cast || '';
+  fields.push(`${key} = $${idx}${castSuffix}`);
+  params.push(paramValue);
+  return idx + 1;
+}
 
 // Configure multer for image uploads
 const storage = multer.diskStorage({
@@ -84,11 +118,11 @@ router.get('/', requireAuth, async (req, res) => {
  */
 router.get('/:id', requireAuth, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM cars WHERE id = $1', [req.params.id]);
-    if (result.rows.length === 0) {
+    const car = await getCarById(req.params.id);
+    if (!car) {
       return res.status(404).json({ error: 'Fahrzeug nicht gefunden.' });
     }
-    res.json(result.rows[0]);
+    res.json(car);
   } catch (err) {
     console.error('Get car error:', err);
     res.status(500).json({ error: 'Fehler beim Laden des Fahrzeugs.' });
@@ -102,28 +136,15 @@ router.get('/:id', requireAuth, async (req, res) => {
 router.post('/', requireAuth, upload.single('image'), async (req, res) => {
   const { seller, brand, model, plate, phone, price, price_label, category, status, tuning } = req.body;
 
-  // Build image path
-  let imagePath = null;
-  if (req.file) {
-    imagePath = `/uploads/${req.file.filename}`;
-  }
-
-  // Parse tuning — could come as JSON string or array
-  let tuningData = '[]';
-  if (tuning) {
-    try {
-      tuningData = typeof tuning === 'string' ? tuning : JSON.stringify(tuning);
-    } catch {
-      tuningData = '[]';
-    }
-  }
+  const imagePath = getUploadedImagePath(req.file);
+  const tuningData = parseTuningInput(tuning, '[]');
 
   try {
     const result = await pool.query(
       `INSERT INTO cars (seller, brand, model, plate, phone, price, price_label, category, status, tuning, image_path)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11)
        RETURNING *`,
-      [seller, brand, model, plate, phone || null, parseInt(price), price_label || `$ ${price}`, category, status || 'available', tuningData, imagePath]
+      [seller, brand, model, plate, phone || null, toInt(price), price_label || `$ ${price}`, category, status || 'available', tuningData, imagePath]
     );
 
     res.status(201).json(result.rows[0]);
@@ -140,19 +161,8 @@ router.post('/', requireAuth, upload.single('image'), async (req, res) => {
 router.put('/:id', requireAuth, upload.single('image'), async (req, res) => {
   const { seller, brand, model, plate, phone, price, price_label, category, status, tuning } = req.body;
 
-  let imagePath = undefined;
-  if (req.file) {
-    imagePath = `/uploads/${req.file.filename}`;
-  }
-
-  let tuningData = undefined;
-  if (tuning) {
-    try {
-      tuningData = typeof tuning === 'string' ? tuning : JSON.stringify(tuning);
-    } catch {
-      tuningData = undefined;
-    }
-  }
+  const imagePath = req.file ? getUploadedImagePath(req.file) : undefined;
+  const tuningData = parseTuningInput(tuning, undefined);
 
   try {
     // Build dynamic UPDATE query
@@ -160,17 +170,17 @@ router.put('/:id', requireAuth, upload.single('image'), async (req, res) => {
     const params = [];
     let idx = 1;
 
-    if (seller !== undefined) { fields.push(`seller = $${idx++}`); params.push(seller); }
-    if (brand !== undefined) { fields.push(`brand = $${idx++}`); params.push(brand); }
-    if (model !== undefined) { fields.push(`model = $${idx++}`); params.push(model); }
-    if (plate !== undefined) { fields.push(`plate = $${idx++}`); params.push(plate); }
-    if (phone !== undefined) { fields.push(`phone = $${idx++}`); params.push(phone); }
-    if (price !== undefined) { fields.push(`price = $${idx++}`); params.push(parseInt(price)); }
-    if (price_label !== undefined) { fields.push(`price_label = $${idx++}`); params.push(price_label); }
-    if (category !== undefined) { fields.push(`category = $${idx++}`); params.push(category); }
-    if (status !== undefined) { fields.push(`status = $${idx++}`); params.push(status); }
-    if (tuningData !== undefined) { fields.push(`tuning = $${idx++}::jsonb`); params.push(tuningData); }
-    if (imagePath !== undefined) { fields.push(`image_path = $${idx++}`); params.push(imagePath); }
+    idx = pushFieldUpdate({ fields, params, idx, key: 'seller', value: seller });
+    idx = pushFieldUpdate({ fields, params, idx, key: 'brand', value: brand });
+    idx = pushFieldUpdate({ fields, params, idx, key: 'model', value: model });
+    idx = pushFieldUpdate({ fields, params, idx, key: 'plate', value: plate });
+    idx = pushFieldUpdate({ fields, params, idx, key: 'phone', value: phone });
+    idx = pushFieldUpdate({ fields, params, idx, key: 'price', value: price, transform: toInt });
+    idx = pushFieldUpdate({ fields, params, idx, key: 'price_label', value: price_label });
+    idx = pushFieldUpdate({ fields, params, idx, key: 'category', value: category });
+    idx = pushFieldUpdate({ fields, params, idx, key: 'status', value: status });
+    idx = pushFieldUpdate({ fields, params, idx, key: 'tuning', value: tuningData, cast: '::jsonb' });
+    idx = pushFieldUpdate({ fields, params, idx, key: 'image_path', value: imagePath });
 
     if (fields.length === 0) {
       return res.status(400).json({ error: 'Keine Felder zum Aktualisieren.' });

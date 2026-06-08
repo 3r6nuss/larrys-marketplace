@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
  ChevronLeft, ChevronRight, Car, MessageSquare,
- Tag, Hash, Calendar, Star, LogIn, Shield, X, Calculator, StarHalf
+ Tag, Hash, Calendar, Star, LogIn, Shield
 } from 'lucide-react';
 import FinancingCalculator from './FinancingCalculator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -46,6 +46,12 @@ const ROLE_LABELS = {
  kunde: 'Kunde',
 };
 
+async function fetchJson(url, options) {
+ const response = await fetch(url, options);
+ if (!response.ok) return null;
+ return response.json();
+}
+
 /**
  * Pokémon-Card style vehicle detail modal.
  * Opens as a large popup over the catalog with image slider and stat box.
@@ -61,33 +67,43 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
  const [loading, setLoading] = useState(true);
  const [currentImage, setCurrentImage] = useState(0);
  const [sellerStats, setSellerStats] = useState(null);
- const [canReview, setCanReview] = useState(false);
- const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
- const [showReviewForm, setShowReviewForm] = useState(false);
 
  // Fetch listing detail
  useEffect(() => {
  if (!open || !listingId) return;
+
+ let isActive = true;
+
  setLoading(true);
  setCurrentImage(0);
+ setSellerStats(null);
 
- fetch(`/api/listings/${listingId}`, { credentials: 'include' })
- .then(r => r.ok ? r.json() : null)
- .then(data => {
+ (async () => {
+ try {
+ const data = await fetchJson(`/api/listings/${listingId}`, { credentials: 'include' });
+ if (!isActive) return;
+
  setListing(data);
- if (data) {
-  addViewed(data.id);
-  // Fetch seller reviews
-  fetch(`/api/reviews/seller/${data.seller_id}`).then(r => r.json()).then(setSellerStats);
-  // Check if can review
-  if (user) {
-   fetch(`/api/reviews/check/${data.id}`, { credentials: 'include' }).then(r => r.json()).then(d => setCanReview(d.can_review));
-  }
+ if (!data) return;
+
+ addViewed(data.id);
+
+ const stats = await fetchJson(`/api/reviews/seller/${data.seller_id}`);
+ if (!isActive) return;
+ setSellerStats(stats);
+ } catch (error) {
+ console.error(error);
+ } finally {
+ if (isActive) {
+ setLoading(false);
  }
- })
- .catch(console.error)
- .finally(() => setLoading(false));
- }, [listingId, open, user]);
+ }
+ })();
+
+ return () => {
+ isActive = false;
+ };
+ }, [listingId, open, addViewed]);
 
  // Keyboard navigation
  useEffect(() => {
@@ -103,7 +119,7 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
  return () => window.removeEventListener('keydown', handler);
  }, [open, listing?.images?.length]);
 
- const handleContact = () => {
+ const handleContact = useCallback(() => {
  if (!user) {
  sessionStorage.setItem('pendingListing', listingId);
  login();
@@ -111,7 +127,7 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
  }
  onClose();
  navigate(`/kunde?modal=tickets&listing=${listingId}`);
- };
+ }, [user, listingId, login, onClose, navigate]);
 
  const images = listing?.images || [];
  const catColor = CATEGORY_COLORS[listing?.category] || CATEGORY_COLORS.Sonstige;

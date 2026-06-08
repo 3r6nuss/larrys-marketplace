@@ -3,6 +3,13 @@ import './ContactModal.css';
 const ContactModal = ({ isOpen, onClose, car, onTicketClick }) => {
  if (!isOpen) return null;
 
+ const handleTicketClick = () => {
+ onTicketClick();
+ onClose();
+ };
+
+ const phoneLabel = car?.phone || 'Keine Telefonnummer hinterlegt';
+
  return (
  <div className="modal-overlay" onClick={onClose}>
  <div className="modal-content glass" onClick={e => e.stopPropagation()}>
@@ -12,10 +19,7 @@ const ContactModal = ({ isOpen, onClose, car, onTicketClick }) => {
  </div>
  
  <div className="contact-options">
- <button className="contact-option-btn ticket-btn" onClick={() => {
- onTicketClick();
- onClose();
- }}>
+ <button className="contact-option-btn ticket-btn" onClick={handleTicketClick}>
  <div className="option-icon">🎫</div>
  <div className="option-text">
  <span className="option-title">Ticket erstellen</span>
@@ -27,7 +31,7 @@ const ContactModal = ({ isOpen, onClose, car, onTicketClick }) => {
  <div className="option-icon">📞</div>
  <div className="option-text">
  <span className="option-title">Telefonisch kontaktieren</span>
- <span className="option-desc">Rufe den Verkäufer direkt an: {car.phone}</span>
+ <span className="option-desc">Rufe den Verkäufer direkt an: {phoneLabel}</span>
  </div>
  </div>
  </div>

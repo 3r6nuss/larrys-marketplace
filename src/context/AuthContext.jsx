@@ -14,15 +14,21 @@ export function AuthProvider({ children }) {
  const [user, setUser] = useState(null);
  const [loading, setLoading] = useState(true);
 
+ const noCacheHeaders = useMemo(() => ({
+ 'Cache-Control': 'no-cache',
+ Pragma: 'no-cache',
+ }), []);
+
+ const postWithCredentials = useCallback((endpoint) => {
+ return fetch(endpoint, { method: 'POST', credentials: 'include' });
+ }, []);
+
  const fetchUser = useCallback(async () => {
  try {
- const res = await fetch('/api/auth/me', { 
-   credentials: 'include',
-   cache: 'no-store',
-   headers: {
-     'Cache-Control': 'no-cache',
-     'Pragma': 'no-cache'
-   }
+ const res = await fetch('/api/auth/me', {
+ credentials: 'include',
+ cache: 'no-store',
+ headers: noCacheHeaders,
  });
  if (res.ok) {
  const data = await res.json();
@@ -35,47 +41,47 @@ export function AuthProvider({ children }) {
  } finally {
  setLoading(false);
  }
- }, []);
+ }, [noCacheHeaders]);
 
  useEffect(() => {
  fetchUser();
  }, [fetchUser]);
 
- const login = () => {
+ const login = useCallback(() => {
  window.location.href = '/api/auth/discord';
- };
+ }, []);
 
- const logout = async () => {
+ const logout = useCallback(async () => {
  try {
- await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+ await postWithCredentials('/api/auth/logout');
  } catch {
  // ignore
  }
  setUser(null);
  window.location.href = '/';
- };
+ }, [postWithCredentials]);
 
- const completeOnboarding = async () => {
+ const completeOnboarding = useCallback(async () => {
  try {
- const res = await fetch('/api/users/onboarding-complete', { method: 'POST', credentials: 'include' });
+ const res = await postWithCredentials('/api/users/onboarding-complete');
  if (res.ok) {
  setUser(prev => prev ? { ...prev, has_completed_onboarding: 1 } : null);
  }
  } catch {
  // ignore
  }
- };
+ }, [postWithCredentials]);
 
- const resetOnboarding = async () => {
+ const resetOnboarding = useCallback(async () => {
  try {
- const res = await fetch('/api/users/onboarding-reset', { method: 'POST', credentials: 'include' });
+ const res = await postWithCredentials('/api/users/onboarding-reset');
  if (res.ok) {
  setUser(prev => prev ? { ...prev, has_completed_onboarding: 0 } : null);
  }
  } catch {
  // ignore
  }
- };
+ }, [postWithCredentials]);
 
  const hasRole = useCallback((minRole) => {
  if (!user) return false;
@@ -94,7 +100,17 @@ export function AuthProvider({ children }) {
  refetchUser: fetchUser,
  completeOnboarding,
  resetOnboarding,
- }), [user, loading, hasRole, isBlocked, fetchUser]);
+ }), [
+ user,
+ loading,
+ login,
+ logout,
+ hasRole,
+ isBlocked,
+ fetchUser,
+ completeOnboarding,
+ resetOnboarding,
+ ]);
 
  return (
  <AuthContext.Provider value={value}>

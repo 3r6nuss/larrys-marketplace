@@ -408,8 +408,9 @@ router.put('/:id/erp-status', requireAuth, async (req, res) => {
  * Create purchase contract in ticket (staff only).
  */
 router.post('/:id/contract', requireAuth, requireRole('mitarbeiter'), async (req, res) => {
-  const { price, payment_type } = req.body;
-  if (!price || !payment_type) return res.status(400).json({ error: 'Preis und Zahlungsart erforderlich.' });
+  const { price } = req.body;
+  const payment_type = 'cash';
+  if (!price) return res.status(400).json({ error: 'Preis erforderlich.' });
 
   try {
     const ticket = await getTicketById(req.params.id);

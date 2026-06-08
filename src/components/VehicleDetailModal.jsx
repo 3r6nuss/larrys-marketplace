@@ -11,8 +11,6 @@ import {
  ChevronLeft, ChevronRight, Car, MessageSquare,
  Tag, Hash, Calendar, Star, LogIn, Shield
 } from 'lucide-react';
-import FinancingCalculator from './FinancingCalculator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const CATEGORY_COLORS = {
  Sport: 'border-blue-500/50 shadow-blue-500/10',
@@ -275,26 +273,9 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
  {listing.model}
  </h3>
 
-  {isStaff ? (
-   <Tabs defaultValue="details" className="mt-6">
-    <TabsList className="grid w-full grid-cols-2">
-     <TabsTrigger value="details">Details</TabsTrigger>
-     <TabsTrigger value="finance">Finanzierung</TabsTrigger>
-    </TabsList>
-    
-    <TabsContent value="details" className="mt-4 space-y-4">
-     {detailsContent}
-    </TabsContent>
-    
-    <TabsContent value="finance" className="mt-4">
-     <FinancingCalculator price={listing.custom_price || 0} />
-    </TabsContent>
-   </Tabs>
-  ) : (
-   <div className="mt-6 space-y-4">
-    {detailsContent}
-   </div>
-  )}
+  <div className="mt-6 space-y-4">
+   {detailsContent}
+  </div>
 </div>
 
  {/* Separator */}

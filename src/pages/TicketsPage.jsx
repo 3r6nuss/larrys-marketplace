@@ -180,19 +180,16 @@ export default function TicketsPage({ isModal }) {
 
   // ERP Contract states
   const [contractPriceInput, setContractPriceInput] = useState('');
-  const [contractPaymentType, setContractPaymentType] = useState('cash');
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (ticketDetail) {
       if (ticketDetail.contract_price && ticketDetail.contract_price > 0) {
         setContractPriceInput(ticketDetail.contract_price.toString());
-        setContractPaymentType(ticketDetail.contract_payment_type || 'cash');
       } else {
         const defaultPrice = ticketDetail.custom_price || 
                              (ticketDetail.catalog ? Math.round((ticketDetail.catalog.min_sell_price + ticketDetail.catalog.max_sell_price) / 2) : '');
         setContractPriceInput(defaultPrice.toString());
-        setContractPaymentType('cash');
       }
     }
   }, [ticketDetail]);
@@ -228,7 +225,7 @@ export default function TicketsPage({ isModal }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ price: parseInt(contractPriceInput), payment_type: contractPaymentType }),
+        body: JSON.stringify({ price: parseInt(contractPriceInput), payment_type: 'cash' }),
       });
       if (res.ok) {
         toast.success('Kaufvertrag erstellt!');
@@ -294,7 +291,7 @@ export default function TicketsPage({ isModal }) {
     if (msg.message.startsWith('[SYSTEM_CONTRACT_CREATED]')) {
       const parts = msg.message.replace('[SYSTEM_CONTRACT_CREATED] ', '').split(' | ');
       const price = parseInt(parts[0]);
-      const payType = parts[1] === 'financing' ? 'Finanzierung' : 'Barzahlung';
+      const payType = 'Barzahlung';
 
       return (
         <div className="bg-gradient-to-br from-card/95 to-card/60 border-2 border-primary/20 backdrop-blur-md rounded-2xl p-4 shadow-lg text-foreground max-w-sm w-full space-y-3 font-sans animate-in zoom-in-95 duration-200">
@@ -761,7 +758,7 @@ export default function TicketsPage({ isModal }) {
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Zahlungsart:</span>
                           <span className="font-semibold uppercase text-[10px] text-foreground">
-                            {ticketDetail.contract_payment_type === 'financing' ? 'Finanzierung' : 'Bar'}
+                            Bar
                           </span>
                         </div>
                         <div className="text-[9px] text-muted-foreground/80 mt-1 border-t border-border/20 pt-1">
@@ -808,31 +805,8 @@ export default function TicketsPage({ isModal }) {
 
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Zahlungsart</label>
-                        <div className="grid grid-cols-2 gap-2 bg-muted/30 p-1 rounded-xl border border-border/40">
-                          <button
-                            type="button"
-                            onClick={() => setContractPaymentType('cash')}
-                            className={`h-7.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                              contractPaymentType === 'cash'
-                                ? 'bg-primary/20 border border-primary/30 text-primary shadow-sm'
-                                : 'border border-transparent text-muted-foreground hover:bg-muted/40'
-                            }`}
-                            disabled={ticketDetail.status === 'completed' || ticketDetail.status === 'cancelled'}
-                          >
-                            Barzahlung
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setContractPaymentType('financing')}
-                            className={`h-7.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                              contractPaymentType === 'financing'
-                                ? 'bg-primary/20 border border-primary/30 text-primary shadow-sm'
-                                : 'border border-transparent text-muted-foreground hover:bg-muted/40'
-                            }`}
-                            disabled={ticketDetail.status === 'completed' || ticketDetail.status === 'cancelled'}
-                          >
-                            Finanzierung
-                          </button>
+                        <div className="h-8.5 rounded-lg border border-border/40 bg-muted/30 px-3 flex items-center text-xs font-semibold">
+                          Barzahlung
                         </div>
                       </div>
 

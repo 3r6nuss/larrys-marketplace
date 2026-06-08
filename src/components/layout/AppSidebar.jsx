@@ -4,7 +4,6 @@ import {
  LayoutDashboard,
  Ticket,
  Package,
- Calculator,
  Vault,
  Users,
  BarChart3,
@@ -66,7 +65,6 @@ export default function AppSidebar() {
  { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard, minRole: 'mitarbeiter' },
  { title: 'Meine Inserate', url: '/dashboard/listings', icon: Package, minRole: 'mitarbeiter' },
  { title: 'Tickets', url: '/dashboard/tickets', icon: Ticket, minRole: 'kunde' },
- { title: 'Ankaufrechner', url: '/dashboard/calculator', icon: Calculator, minRole: 'mitarbeiter' },
  { title: 'Tresor', url: '/dashboard/vault', icon: Vault, minRole: 'mitarbeiter' },
  ];
 

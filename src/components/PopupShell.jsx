@@ -4,7 +4,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 const ListingsPage = lazy(() => import('@/pages/ListingsPage'));
 const TicketsPage = lazy(() => import('@/pages/TicketsPage'));
-const CalculatorPage = lazy(() => import('@/pages/CalculatorPage'));
 const VaultPage = lazy(() => import('@/pages/VaultPage'));
 const StatsPage = lazy(() => import('@/pages/StatsPage'));
 const UsersPage = lazy(() => import('@/pages/UsersPage'));
@@ -19,7 +18,6 @@ const VehicleRequestsPage = lazy(() => import('@/pages/VehicleRequestsPage'));
 const MODAL_MAP = {
  listings: ListingsPage,
  tickets: TicketsPage,
- calculator: CalculatorPage,
  vault: VaultPage,
  stats: StatsPage,
  users: UsersPage,

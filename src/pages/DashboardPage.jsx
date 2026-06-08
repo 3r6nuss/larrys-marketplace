@@ -5,12 +5,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import ListingsPage from '@/pages/ListingsPage';
-import CalculatorPage from '@/pages/CalculatorPage';
 import TicketsPage from '@/pages/TicketsPage';
 import VaultPage from '@/pages/VaultPage';
 import { 
  Car, Ticket, DollarSign, Eye, Clock, ArrowRight, 
- PlusCircle, Calculator, CheckCircle2, StickyNote, Wallet, TrendingUp 
+ PlusCircle, CheckCircle2, StickyNote, Wallet, TrendingUp 
 } from 'lucide-react';
 
 /**
@@ -105,13 +104,6 @@ export default function DashboardPage() {
  >
  <PlusCircle className="mr-2 h-4 w-4" />
  Neues Inserat
- </button>
- <button 
- onClick={() => setSearchParams({ modal: 'calculator' })}
- className="inline-flex items-center justify-center rounded-lg text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring border border-input bg-card/50 shadow-sm hover:bg-accent hover:text-accent-foreground hover:-translate-y-0.5 h-10 px-5 cursor-pointer"
- >
- <Calculator className="mr-2 h-4 w-4" />
- Rechner öffnen
  </button>
  </div>
  </div>
@@ -273,7 +265,6 @@ export default function DashboardPage() {
  <DialogContent className="max-w-[95vw] sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[1200px] xl:max-w-[1350px] w-full h-[90vh] overflow-y-auto bg-background/95 border-border/50">
  <div className="p-2 h-full">
  {activeModal === 'listings' && <ListingsPage isModal />}
- {activeModal === 'calculator' && <CalculatorPage isModal />}
  {activeModal === 'tickets' && <TicketsPage isModal />}
  {activeModal === 'vault' && <VaultPage isModal />}
  </div>

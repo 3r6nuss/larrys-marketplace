@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  ArrowRight, Ticket, Wallet, Package, Calculator,
+  ArrowRight, Ticket, Wallet, Package,
   StickyNote, BarChart3, Users, ScrollText, Database,
   TrendingUp, Store, Wrench, Trophy, History, Search, DollarSign
 } from 'lucide-react';
@@ -187,9 +187,6 @@ export default function WorkspacePage() {
   </Button>
   <Button onClick={() => openModal('listings')} className="gap-2 cursor-pointer shadow-lg shadow-primary/20">
   <Package className="h-4 w-4" />Neues Inserat
-  </Button>
-  <Button variant="outline" onClick={() => openModal('calculator')} className="gap-2 cursor-pointer">
-  <Calculator className="h-4 w-4" />Rechner
   </Button>
   </div>
  </div>

@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 import session from 'express-session';
 import cookieParser from 'cookie-parser';
 import { migrate, seed } from './db.js';
@@ -83,6 +84,18 @@ async function setupAndStart() {
 
     // Routes
     app.use('/api/auth', authRoutes);
+
+    // ── Dev-Login (nur lokal) ──
+    // Die Route liegt in einer per .gitignore ausgeschlossenen Datei und wird
+    // ausschließlich geladen, wenn diese lokal vorhanden ist. Dadurch kann der
+    // passwortlose Superadmin-Bypass niemals auf den Server / in Produktion gelangen.
+    const devLoginFile = fileURLToPath(new URL('./routes/dev-login.js', import.meta.url));
+    if (fs.existsSync(devLoginFile)) {
+      const { default: devLoginRoutes } = await import('./routes/dev-login.js');
+      app.use('/api/auth', devLoginRoutes);
+      console.log('🛠️  Dev-Login aktiv (lokal, nicht im Repo)');
+    }
+
     app.use('/api/listings', listingsRoutes);
     app.use('/api/tickets', ticketsRoutes);
     app.use('/api/users', usersRoutes);

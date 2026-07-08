@@ -32,7 +32,8 @@ client.once('ready', () => {
  */
 export const sendDM = async (discordUserId, messageContent) => {
   if (!isReady || !DISCORD_BOT_TOKEN) return false;
-  if (!discordUserId || discordUserId.startsWith('dev_')) return false; // Keine Dev-User
+  // Keine Dev-/virtuellen Accounts — diese haben keine echte Discord-ID
+  if (!discordUserId || discordUserId.startsWith('dev_') || discordUserId.startsWith('virtual_')) return false;
 
   try {
     const user = await client.users.fetch(discordUserId);

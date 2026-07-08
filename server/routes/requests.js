@@ -49,14 +49,9 @@ router.post('/', requireAuth, async (req, res) => {
   }
 
   try {
-    await pool.query(
-      `INSERT INTO vehicle_requests (customer_id, brand, model, notes) VALUES (?, ?, ?, ?)`,
-      [req.user.id, brand.trim(), model.trim(), notes?.trim() || null]
-    );
-
     const created = await pool.query(
-      `SELECT * FROM vehicle_requests WHERE customer_id = ? ORDER BY created_at DESC LIMIT 1`,
-      [req.user.id]
+      `INSERT INTO vehicle_requests (customer_id, brand, model, notes) VALUES (?, ?, ?, ?) RETURNING *`,
+      [req.user.id, brand.trim(), model.trim(), notes?.trim() || null]
     );
 
     await logAction(req.user.id, 'vehicle_request_created', 'vehicle_request', created.rows[0]?.id, { brand, model }, req.ip);

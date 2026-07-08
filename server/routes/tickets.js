@@ -53,13 +53,11 @@ router.post('/', requireAuth, async (req, res) => {
     const listing = await pool.query('SELECT * FROM listings WHERE id = ?', [listing_id]);
     if (listing.rows.length === 0) return res.status(404).json({ error: 'Inserat nicht gefunden.' });
 
-    // Create ticket
-    await pool.query(
-      "INSERT INTO tickets (listing_id, customer_id, status) VALUES (?, ?, 'open')",
-      [listing_id, req.user.id]
-    );
+    // Create ticket — last_read_staff wird bewusst in die Vergangenheit gesetzt,
+    // damit ein frisch erstelltes Ticket für das Team sofort als ungelesen erscheint
+    // (updated_at liegt sonst gleichauf mit dem CURRENT_TIMESTAMP-Default).
     const ticket = await pool.query(
-      'SELECT * FROM tickets WHERE listing_id = ? AND customer_id = ? ORDER BY created_at DESC LIMIT 1',
+      "INSERT INTO tickets (listing_id, customer_id, status, last_read_staff) VALUES (?, ?, 'open', '1970-01-01 00:00:00') RETURNING *",
       [listing_id, req.user.id]
     );
     const newTicket = ticket.rows[0];

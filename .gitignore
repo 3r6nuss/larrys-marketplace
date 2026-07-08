@@ -19,6 +19,9 @@ server/package-lock.json
 *.db*
 .env
 
+# Dev-only login bypass — never commit/deploy to the server
+server/routes/dev-login.js
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

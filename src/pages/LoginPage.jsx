@@ -77,13 +77,15 @@ export default function LoginPage() {
               Mit Discord anmelden
             </Button>
 
-            <Button
-              onClick={() => window.location.href = '/api/auth/dev-login'}
-              variant="outline"
-              className="w-full h-12 text-base font-semibold gap-3 cursor-pointer border-primary/20 hover:bg-primary/10 hover:border-primary/40 text-foreground transition-all duration-300 shadow-sm rounded-xl"
-            >
-              Developer-Bypass Login (Ohne Discord)
-            </Button>
+            {import.meta.env.DEV && (
+              <Button
+                onClick={() => window.location.href = '/api/auth/dev-login'}
+                variant="outline"
+                className="w-full h-12 text-base font-semibold gap-3 cursor-pointer border-primary/20 hover:bg-primary/10 hover:border-primary/40 text-foreground transition-all duration-300 shadow-sm rounded-xl"
+              >
+                Developer-Bypass Login (Ohne Discord)
+              </Button>
+            )}
 
             <p className="text-center text-xs text-muted-foreground/60">
               Deine Daten werden sicher über Discord OAuth2 authentifiziert.

@@ -36,6 +36,11 @@ router.post('/', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Listing ID und Bewertung erforderlich.' });
   }
 
+  const numericRating = Number(rating);
+  if (!Number.isInteger(numericRating) || numericRating < 1 || numericRating > 5) {
+    return res.status(400).json({ error: 'Bewertung muss eine ganze Zahl zwischen 1 und 5 sein.' });
+  }
+
   try {
     // 1. Check if user has a completed ticket for this listing
     const completedTicket = await getCompletedTicket(listing_id, customer_id);
@@ -55,10 +60,10 @@ router.post('/', requireAuth, async (req, res) => {
     await pool.query(
       `INSERT INTO reviews (listing_id, seller_id, customer_id, rating, comment)
        VALUES (?, ?, ?, ?, ?)`,
-      [listing_id, seller_id, customer_id, rating, comment || null]
+      [listing_id, seller_id, customer_id, numericRating, comment || null]
     );
 
-    await logAction(customer_id, 'review_posted', 'listing', listing_id, { rating }, req.ip);
+    await logAction(customer_id, 'review_posted', 'listing', listing_id, { rating: numericRating }, req.ip);
 
     res.status(201).json({ success: true });
   } catch (err) {

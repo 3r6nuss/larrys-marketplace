@@ -176,14 +176,10 @@ router.post('/', requireAuth, requireRole('mitarbeiter'), upload.single('image')
   else if (image_base64) imagePath = await saveBase64Image(image_base64).catch(() => null);
 
   try {
-    await pool.query(
-      "INSERT INTO listings (catalog_id, seller_id, brand, model, plate, category, custom_price, discount_pct, notes, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    const created = await pool.query(
+      "INSERT INTO listings (catalog_id, seller_id, brand, model, plate, category, custom_price, discount_pct, notes, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *",
       [catalog_id || null, req.user.id, brand, model, plate || null, category || null,
        custom_price ? toInt(custom_price) : null, discount_pct ? parseFloat(discount_pct) : 0, notes || null, imagePath]
-    );
-    const created = await pool.query(
-      'SELECT * FROM listings WHERE seller_id = ? AND brand = ? AND model = ? ORDER BY listed_at DESC LIMIT 1',
-      [req.user.id, brand, model]
     );
     const listingId = created.rows[0].id;
 

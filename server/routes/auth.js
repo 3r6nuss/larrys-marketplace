@@ -243,50 +243,6 @@ router.post('/impersonate', async (req, res) => {
 });
 
 /**
- * GET /api/auth/dev-login
- * Developer bypass login route for testing without Discord OAuth.
- */
-router.get('/dev-login', async (req, res) => {
-  try {
-    // 1. Check if a dev user already exists
-    let result = await db.query("SELECT * FROM users WHERE discord_id = 'dev_superadmin'");
-    let user;
-
-    if (result.rows.length === 0) {
-      // 2. Create the dev user with superadmin privileges
-      result = await db.query(
-        `INSERT INTO users (discord_id, username, display_name, role)
-         VALUES ('dev_superadmin', 'dev_admin', 'Dev Admin', 'superadmin')
-         RETURNING *`
-      );
-      user = result.rows[0];
-      console.log('👑 Dev Superadmin account created');
-    } else {
-      user = result.rows[0];
-    }
-
-    // 3. Set session
-    req.session.userId = user.id;
-
-    // 4. Log the login
-    await logAction(user.id, 'dev_login', 'user', user.id, {}, req.ip);
-
-    // 5. Save session explicitly and redirect to frontend callback
-    req.session.save((err) => {
-      if (err) {
-        console.error('Session save error during dev login:', err);
-        return res.redirect(`${FRONTEND_URL}/auth/callback?error=session_save`);
-      }
-      res.redirect(`${FRONTEND_URL}/auth/callback`);
-    });
-
-  } catch (err) {
-    console.error('Dev login error:', err);
-    res.redirect(`${FRONTEND_URL}/auth/callback?error=server_error`);
-  }
-});
-
-/**
  * GET /api/auth/discord/callback
  * Handles Discord OAuth2 callback — exchanges code for token, fetches user info,
  * creates/updates user in DB, sets session.

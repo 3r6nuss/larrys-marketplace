@@ -47,7 +47,7 @@ export default function TicketsPage({ isModal }) {
  const [message, setMessage] = useState('');
  const [sending, setSending] = useState(false);
  const [statusFilter, setStatusFilter] = useState('all');
- const [assignedToFilter, setAssignedToFilter] = useState(user?.id?.toString() || 'all');
+ const [assignedToFilter, setAssignedToFilter] = useState('mine');
   const [showClosed, setShowClosed] = useState(false);
   const [staffUsers, setStaffUsers] = useState([]);
   const [haltStop, setHaltStop] = useState(false);
@@ -84,7 +84,9 @@ export default function TicketsPage({ isModal }) {
    try {
      const params = new URLSearchParams();
      if (statusFilter !== 'all') params.append('status', statusFilter);
-     if (hasRole('mitarbeiter') && assignedToFilter !== 'all') params.append('assigned_to', assignedToFilter);
+     if (hasRole('mitarbeiter') && assignedToFilter !== 'all') {
+       params.append('assigned_to', assignedToFilter === 'mine' ? String(user?.id ?? '') : assignedToFilter);
+     }
      if (showClosed) params.append('show_closed', 'true');
      
      const res = await fetch(`/api/tickets?${params.toString()}`, { credentials: 'include' });
@@ -94,7 +96,7 @@ export default function TicketsPage({ isModal }) {
    } finally {
      setLoading(false);
    }
- }, [statusFilter, assignedToFilter, showClosed, hasRole]);
+ }, [statusFilter, assignedToFilter, showClosed, hasRole, user?.id]);
 
  const createTicket = useCallback(async (listingId) => {
    try {
@@ -418,11 +420,17 @@ export default function TicketsPage({ isModal }) {
             {hasRole('mitarbeiter') && (
               <Select value={assignedToFilter} onValueChange={setAssignedToFilter}>
                 <SelectTrigger className="w-[130px] h-8 text-xs bg-background/50 border-border/50">
-                  <SelectValue placeholder="Mitarbeiter" />
+                  <SelectValue placeholder="Mitarbeiter">
+                    {assignedToFilter === 'all'
+                      ? 'Alle Tickets'
+                      : assignedToFilter === 'mine'
+                        ? 'Meine Tickets'
+                        : (staffUsers.find(u => u.id.toString() === assignedToFilter)?.display_name || 'Mitarbeiter')}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Alle Tickets</SelectItem>
-                  <SelectItem value={user?.id?.toString() || 'me'}>Meine Tickets</SelectItem>
+                  <SelectItem value="mine">Meine Tickets</SelectItem>
                   {staffUsers.filter(u => u.id !== user.id).map(st => (
                     <SelectItem key={st.id} value={st.id.toString()}>{st.display_name}</SelectItem>
                   ))}

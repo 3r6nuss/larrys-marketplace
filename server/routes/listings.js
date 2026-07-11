@@ -269,6 +269,7 @@ router.put('/:id', requireAuth, requireRole('mitarbeiter'), upload.single('image
   if (sets.length === 0) return res.status(400).json({ error: 'Keine Änderungen.' });
 
   try {
+    params.push(req.params.id);
     await pool.query(`UPDATE listings SET ${sets.join(', ')} WHERE id = ?`, params);
     const updated = await pool.query('SELECT * FROM listings WHERE id = ?', [req.params.id]);
     const upRow = updated.rows[0];

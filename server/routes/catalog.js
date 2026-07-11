@@ -5,6 +5,7 @@ import { requireAuth, requireRole, logAction } from '../middleware/auth.js';
 const router = Router();
 const toInt = (value) => Number.parseInt(value, 10) || 0;
 const hasText = (value) => typeof value === 'string' && value.trim().length > 0;
+const SUPPLEMENTAL_VEHICLES = [{ brand: 'Pegassi', model: 'Settimo Vento' }];
 
 /**
  * GET /api/catalog/vehicles
@@ -33,7 +34,14 @@ router.get('/vehicles', async (req, res) => {
       ORDER BY brand ASC, model ASC`,
       params
     );
-    res.json(result.rows);
+    const vehicles = [...result.rows];
+    const existing = new Set(vehicles.map(({ brand, model }) => `${brand}\0${model}`.toLowerCase()));
+    for (const vehicle of SUPPLEMENTAL_VEHICLES) {
+      const key = `${vehicle.brand}\0${vehicle.model}`.toLowerCase();
+      if (!existing.has(key)) vehicles.push(vehicle);
+    }
+    vehicles.sort((left, right) => left.brand.localeCompare(right.brand) || left.model.localeCompare(right.model));
+    res.json(vehicles);
   } catch (err) {
     console.error('Public catalog error:', err);
     res.status(500).json({ error: 'Fehler.' });

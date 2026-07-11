@@ -14,7 +14,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from 'sonner';
 import { Plus, MoreHorizontal, Pencil, Trash2, Eye, Car, ImagePlus, X, ClipboardPaste, Star, GripVertical, Crown, DollarSign } from 'lucide-react';
 
-const CATEGORIES = ['Sport', 'SUV', 'Muscle', 'Limousine', 'Kompakt', 'Coupé', 'Offroad', 'Van', 'Sonstige'];
+const CATEGORIES = [
+ 'Sport', 'Super', 'Sports Classic', 'SUV', 'Muscle', 'Limousine',
+ 'Kompakt', 'Coupé', 'Offroad', 'Van', 'Sonstige',
+];
 const STATUS_MAP = {
  available: { label: 'Verfügbar', class: 'bg-success/15 text-success border-success/30' },
  reserved: { label: 'Reserviert', class: 'bg-warning/15 text-warning border-warning/30' },

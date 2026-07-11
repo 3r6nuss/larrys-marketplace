@@ -44,7 +44,7 @@ export default function CustomerHomePage() {
  // Fetch data
  useEffect(() => {
  const fetches = [
- fetch('/api/stats/public').then(r => r.ok ? r.json() : null),
+ fetch('/api/stats/public', { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
  fetch('/api/listings/featured').then(r => r.ok ? r.json() : []),
  fetch('/api/listings/newest').then(r => r.ok ? r.json() : []),
  ];
@@ -60,6 +60,17 @@ export default function CustomerHomePage() {
  if (reqStats) setRequestStats(reqStats);
  }).catch(console.error).finally(() => setLoading(false));
  }, [user]);
+
+ useEffect(() => {
+ const refreshPublicStats = () => {
+ fetch('/api/stats/public', { cache: 'no-store' })
+ .then(r => r.ok ? r.json() : null)
+ .then(stats => { if (stats) setPublicStats(stats); })
+ .catch(console.error);
+ };
+ window.addEventListener('focus', refreshPublicStats);
+ return () => window.removeEventListener('focus', refreshPublicStats);
+ }, []);
 
  // Fetch recently viewed
  useEffect(() => {

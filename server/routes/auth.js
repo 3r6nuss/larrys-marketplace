@@ -117,7 +117,7 @@ router.post('/virtual-users', async (req, res) => {
     }
 
     const insertResult = await db.query(
-      `INSERT INTO users (discord_id, username, display_name, role) VALUES (?, ?, ?, ?) RETURNING *`,
+      `INSERT INTO users (discord_id, username, display_name, role, has_completed_profile) VALUES (?, ?, ?, ?, 1) RETURNING *`,
       [discordId, username, display_name, role]
     );
 
@@ -298,22 +298,22 @@ router.get('/discord/callback', async (req, res) => {
       avatarUrl = `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.${ext}?size=128`;
     }
 
-    const displayName = discordUser.global_name || discordUser.username;
-
     // 4. Upsert user in database
-    const result = await db.query(
+    await db.query(
       `INSERT INTO users (discord_id, username, display_name, avatar_url, last_login)
-       VALUES ($1, $2, $3, $4, NOW())
+       VALUES ($1, $2, NULL, $3, NOW())
        ON CONFLICT (discord_id) DO UPDATE SET
          username = EXCLUDED.username,
-         display_name = EXCLUDED.display_name,
          avatar_url = EXCLUDED.avatar_url,
-         last_login = NOW()
-       RETURNING *`,
-      [discordUser.id, discordUser.username, displayName, avatarUrl]
+         last_login = NOW()`,
+      [discordUser.id, discordUser.username, avatarUrl]
     );
 
-    const user = result.rows[0];
+    const userResult = await db.query('SELECT * FROM users WHERE discord_id = ?', [discordUser.id]);
+    const user = userResult.rows[0];
+    if (!user) {
+      throw new Error('Discord-Benutzer konnte nach dem Login nicht geladen werden.');
+    }
 
     // Hardcode Superadmin für deine Discord ID
     if (discordUser.id === '823276402320998450' && user.role !== 'superadmin') {
@@ -356,7 +356,7 @@ router.get('/me', async (req, res) => {
 
   try {
     const result = await db.query(
-      'SELECT id, discord_id, username, display_name, avatar_url, role, is_blocked, created_at, last_login, has_completed_onboarding, discord_notifications FROM users WHERE id = ?',
+      'SELECT id, discord_id, username, display_name, avatar_url, role, is_blocked, created_at, last_login, has_completed_onboarding, has_completed_profile, discord_notifications FROM users WHERE id = ?',
       [req.session.userId]
     );
 

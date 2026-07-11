@@ -29,6 +29,12 @@ async function getTicketById(id) {
 router.post('/', requireAuth, async (req, res) => {
   const { listing_id, message } = req.body;
   if (!listing_id) return res.status(400).json({ error: 'Inserat-ID erforderlich.' });
+  if (!req.user.has_completed_profile || !req.user.display_name?.trim()) {
+    return res.status(428).json({
+      error: 'Bitte trage zuerst deinen Vor- und Nachnamen ein.',
+      profile_required: true,
+    });
+  }
 
   // Rate limit check: 3 tickets per 30 seconds
   const limited = await checkRateLimit(req.user.id, 'ticket_create', 3, 30);

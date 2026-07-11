@@ -233,7 +233,8 @@ export async function migrate() {
         created_at    TEXT DEFAULT CURRENT_TIMESTAMP,
         last_login    TEXT DEFAULT CURRENT_TIMESTAMP,
         discord_notifications INTEGER DEFAULT 1,
-        has_completed_onboarding INTEGER DEFAULT 0
+        has_completed_onboarding INTEGER DEFAULT 0,
+        has_completed_profile INTEGER DEFAULT 0
       )
     `);
 
@@ -354,6 +355,7 @@ export async function migrate() {
     try { await client.query(`ALTER TABLE tickets ADD COLUMN contract_payment_type TEXT`); } catch (e) {}
     try { await client.query(`ALTER TABLE tickets ADD COLUMN contract_created_at TEXT`); } catch (e) {}
     try { await client.query(`ALTER TABLE users ADD COLUMN has_completed_onboarding INTEGER DEFAULT 0`); } catch (e) {}
+    try { await client.query(`ALTER TABLE users ADD COLUMN has_completed_profile INTEGER DEFAULT 0`); } catch (e) {}
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS ticket_messages (

@@ -6,6 +6,13 @@ const router = Router();
 const VALID_ROLES = ['kunde', 'mitarbeiter', 'inhaber', 'stv_admin', 'superadmin'];
 
 const toId = (value) => Number.parseInt(value, 10);
+const NAME_PATTERN = /^[\p{L}][\p{L}\p{M}' -]*[\p{L}\p{M}]$/u;
+
+const normalizeName = (value) => typeof value === 'string'
+  ? value.trim().replace(/\s+/g, ' ')
+  : '';
+
+const isValidName = (value) => value.length >= 2 && value.length <= 50 && NAME_PATTERN.test(value);
 
 const getUserById = async (id) => {
   const result = await pool.query('SELECT * FROM users WHERE id = ?', [id]);
@@ -34,6 +41,32 @@ router.get('/staff', requireAuth, requireRole('mitarbeiter'), async (req, res) =
   } catch (err) {
     console.error('Get staff error:', err);
     res.status(500).json({ error: 'Fehler beim Laden der Mitarbeiter.' });
+  }
+});
+
+/** PUT /api/users/me/profile-name */
+router.put('/me/profile-name', requireAuth, async (req, res) => {
+  const firstName = normalizeName(req.body.first_name);
+  const lastName = normalizeName(req.body.last_name);
+
+  if (!isValidName(firstName) || !isValidName(lastName)) {
+    return res.status(400).json({
+      error: 'Bitte gib einen gültigen Vor- und Nachnamen mit jeweils 2 bis 50 Zeichen ein.',
+    });
+  }
+
+  const displayName = `${firstName} ${lastName}`;
+
+  try {
+    await pool.query(
+      'UPDATE users SET display_name = ?, has_completed_profile = 1 WHERE id = ?',
+      [displayName, req.user.id]
+    );
+    await logAction(req.user.id, 'profile_name_set', 'user', req.user.id, {}, req.ip);
+    res.json({ success: true, display_name: displayName, has_completed_profile: 1 });
+  } catch (err) {
+    console.error('Profile name update error:', err);
+    res.status(500).json({ error: 'Der Name konnte nicht gespeichert werden.' });
   }
 });
 

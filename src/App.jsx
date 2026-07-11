@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { NotificationProvider } from '@/context/NotificationContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import ProfileNameDialog from '@/components/ProfileNameDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const LoginPage = lazy(() => import('@/pages/LoginPage'));
@@ -44,6 +45,7 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <NotificationProvider>
+          <ProfileNameDialog />
           <Suspense fallback={<AppLoadingFallback />}>
             <Routes>
               <Route path="/login" element={<LoginPage />} />

@@ -2,12 +2,13 @@ import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, Shield, Calendar, Clock, RotateCcw } from 'lucide-react';
+import { LogOut, Shield, Calendar, Clock, RotateCcw, Save, UserRoundPen } from 'lucide-react';
 import { format } from 'date-fns';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { de } from 'date-fns/locale';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
 const ROLE_LABELS = {
@@ -28,13 +29,39 @@ const ROLE_COLORS = {
 
 export default function ProfilePage() {
  const { user, logout, refetchUser, resetOnboarding } = useAuth();
+ const [fallbackFirstName = '', ...fallbackLastName] = (user?.display_name || '').trim().split(/\s+/);
  const [discordDms, setDiscordDms] = useState(user?.discord_notifications == 1 || user?.discord_notifications === true);
+ const [firstName, setFirstName] = useState(user?.first_name || fallbackFirstName);
+ const [lastName, setLastName] = useState(user?.last_name || fallbackLastName.join(' '));
+ const [savingName, setSavingName] = useState(false);
 
- useEffect(() => {
-   if (user) {
-     setDiscordDms(user.discord_notifications == 1 || user.discord_notifications === true);
+ const saveName = async (event) => {
+   event.preventDefault();
+   setSavingName(true);
+
+   try {
+     const res = await fetch('/api/users/me/profile-name', {
+       method: 'PUT',
+       headers: { 'Content-Type': 'application/json' },
+       credentials: 'include',
+       body: JSON.stringify({ first_name: firstName, last_name: lastName }),
+     });
+     const data = await res.json();
+
+     if (!res.ok) {
+       toast.error(data.error || 'Der Name konnte nicht gespeichert werden.');
+       return;
+     }
+
+     await refetchUser();
+     toast.success('Name aktualisiert.');
+   } catch (err) {
+     console.error('Name update error:', err);
+     toast.error('Netzwerkfehler.');
+   } finally {
+     setSavingName(false);
    }
- }, [user]);
+ };
 
  const toggleDiscordDms = async (checked) => {
    setDiscordDms(checked);
@@ -52,7 +79,7 @@ export default function ProfilePage() {
        toast.error('Fehler beim Speichern');
        setDiscordDms(!checked);
      }
-   } catch (err) {
+   } catch {
      toast.error('Netzwerkfehler');
      setDiscordDms(!checked);
    }
@@ -140,6 +167,31 @@ export default function ProfilePage() {
  <CardTitle className="text-lg">Einstellungen</CardTitle>
  </CardHeader>
  <CardContent className="space-y-4">
+ <form onSubmit={saveName} className="space-y-4">
+ <div className="flex items-center gap-2">
+ <UserRoundPen className="h-4 w-4 text-primary" />
+ <div>
+ <p className="font-medium text-sm">Anzeigename</p>
+ <p className="text-xs text-muted-foreground">Dieser Name wird in Tickets und in deinem Profil angezeigt.</p>
+ </div>
+ </div>
+ <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+ <label className="grid gap-2 text-sm font-medium">
+ Vorname
+ <Input value={firstName} onChange={(event) => setFirstName(event.target.value)} minLength={2} maxLength={50} autoComplete="given-name" required />
+ </label>
+ <label className="grid gap-2 text-sm font-medium">
+ Nachname
+ <Input value={lastName} onChange={(event) => setLastName(event.target.value)} minLength={2} maxLength={50} autoComplete="family-name" required />
+ </label>
+ <Button type="submit" disabled={savingName} className="gap-2">
+ <Save className="h-4 w-4" />
+ {savingName ? 'Speichert...' : 'Speichern'}
+ </Button>
+ </div>
+ </form>
+
+ <div className="flex items-center justify-between pt-4 border-t border-border/50">
  <div className="flex items-center justify-between">
  <div className="space-y-0.5">
  <p className="font-medium text-sm">Discord Benachrichtigungen (PNs)</p>
@@ -151,6 +203,7 @@ export default function ProfilePage() {
  checked={discordDms} 
  onCheckedChange={toggleDiscordDms} 
  />
+ </div>
  </div>
 
  <div className="flex items-center justify-between pt-4 border-t border-border/50">

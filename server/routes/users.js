@@ -59,8 +59,8 @@ router.put('/me/profile-name', requireAuth, async (req, res) => {
 
   try {
     await pool.query(
-      'UPDATE users SET display_name = ?, has_completed_profile = 1 WHERE id = ?',
-      [displayName, req.user.id]
+      'UPDATE users SET display_name = ?, first_name = ?, last_name = ?, has_completed_profile = 1 WHERE id = ?',
+      [displayName, firstName, lastName, req.user.id]
     );
     await logAction(req.user.id, 'profile_name_set', 'user', req.user.id, {}, req.ip);
     res.json({ success: true, display_name: displayName, has_completed_profile: 1 });

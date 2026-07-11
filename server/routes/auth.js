@@ -356,7 +356,7 @@ router.get('/me', async (req, res) => {
 
   try {
     const result = await db.query(
-      'SELECT id, discord_id, username, display_name, avatar_url, role, is_blocked, created_at, last_login, has_completed_onboarding, has_completed_profile, discord_notifications FROM users WHERE id = ?',
+      'SELECT id, discord_id, username, display_name, first_name, last_name, avatar_url, role, is_blocked, created_at, last_login, has_completed_onboarding, has_completed_profile, discord_notifications FROM users WHERE id = ?',
       [req.session.userId]
     );
 

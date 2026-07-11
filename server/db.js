@@ -225,6 +225,8 @@ export async function migrate() {
         discord_id    TEXT UNIQUE NOT NULL,
         username      TEXT NOT NULL,
         display_name  TEXT,
+        first_name    TEXT,
+        last_name     TEXT,
         avatar_url    TEXT,
         role          TEXT NOT NULL DEFAULT 'kunde',
         is_blocked    INTEGER DEFAULT 0,
@@ -356,6 +358,8 @@ export async function migrate() {
     try { await client.query(`ALTER TABLE tickets ADD COLUMN contract_created_at TEXT`); } catch (e) {}
     try { await client.query(`ALTER TABLE users ADD COLUMN has_completed_onboarding INTEGER DEFAULT 0`); } catch (e) {}
     try { await client.query(`ALTER TABLE users ADD COLUMN has_completed_profile INTEGER DEFAULT 0`); } catch (e) {}
+    try { await client.query(`ALTER TABLE users ADD COLUMN first_name TEXT`); } catch (e) {}
+    try { await client.query(`ALTER TABLE users ADD COLUMN last_name TEXT`); } catch (e) {}
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS ticket_messages (

@@ -10,9 +10,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
- Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import {
  Ticket, MessageSquare, Send, ArrowLeft, Car, Clock,
@@ -40,7 +37,7 @@ const ERP_STEPS = [
 ];
 
 export default function TicketsPage({ isModal }) {
- const { user, hasRole, refetchUser } = useAuth();
+ const { user, hasRole } = useAuth();
  const [searchParams, setSearchParams] = useSearchParams();
  const [tickets, setTickets] = useState([]);
  const [loading, setLoading] = useState(true);
@@ -55,10 +52,6 @@ export default function TicketsPage({ isModal }) {
   const [staffUsers, setStaffUsers] = useState([]);
   const [haltStop, setHaltStop] = useState(false);
   const [showWorkspace, setShowWorkspace] = useState(false);
-  const [pendingTicketListingId, setPendingTicketListingId] = useState(null);
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [savingName, setSavingName] = useState(false);
   const messagesEndRef = useRef(null);
   const autoCreateListingRef = useRef(null);
 
@@ -106,7 +99,7 @@ export default function TicketsPage({ isModal }) {
    }
  }, [statusFilter, assignedToFilter, showClosed, hasRole, user]);
 
- const performCreateTicket = useCallback(async (listingId) => {
+ const createTicket = useCallback(async (listingId) => {
    try {
      const res = await fetch('/api/tickets', {
        method: 'POST',
@@ -123,9 +116,7 @@ export default function TicketsPage({ isModal }) {
        selectTicket(ticket.id);
      } else {
        const data = await res.json();
-       if (data.profile_required) {
-         setPendingTicketListingId(listingId);
-       } else if (data.halt_stop) {
+       if (data.halt_stop) {
          setHaltStop(true);
          setTimeout(() => setHaltStop(false), 5000);
        } else if (data.existing_ticket_id) {
@@ -140,47 +131,6 @@ export default function TicketsPage({ isModal }) {
      toast.error('Netzwerkfehler.');
    }
  }, [fetchTickets, selectTicket, setSearchParams]);
-
- const createTicket = useCallback(async (listingId) => {
-   const hasCompletedProfile = user?.has_completed_profile == 1 || user?.has_completed_profile === true;
-   if (!hasCompletedProfile) {
-     setPendingTicketListingId(listingId);
-     return;
-   }
-
-   await performCreateTicket(listingId);
- }, [performCreateTicket, user?.has_completed_profile]);
-
- const saveProfileName = async (event) => {
-   event.preventDefault();
-   setSavingName(true);
-
-   try {
-     const res = await fetch('/api/users/me/profile-name', {
-       method: 'PUT',
-       headers: { 'Content-Type': 'application/json' },
-       credentials: 'include',
-       body: JSON.stringify({ first_name: firstName, last_name: lastName }),
-     });
-     const data = await res.json();
-
-     if (!res.ok) {
-       toast.error(data.error || 'Der Name konnte nicht gespeichert werden.');
-       return;
-     }
-
-     const listingId = pendingTicketListingId;
-     setPendingTicketListingId(null);
-     await refetchUser();
-     toast.success(`Willkommen, ${data.display_name}.`);
-     await performCreateTicket(listingId);
-   } catch (err) {
-     console.error('Error saving profile name:', err);
-     toast.error('Netzwerkfehler.');
-   } finally {
-     setSavingName(false);
-   }
- };
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchTickets(); }, [fetchTickets]);
@@ -231,52 +181,6 @@ export default function TicketsPage({ isModal }) {
       sendMessage();
     }
   };
-
-  const profileNameDialog = (
-    <Dialog open={pendingTicketListingId !== null}>
-      <DialogContent showCloseButton={false}>
-        <form onSubmit={saveProfileName} className="grid gap-5">
-          <DialogHeader>
-            <DialogTitle>Wie dürfen wir dich ansprechen?</DialogTitle>
-            <DialogDescription>
-              Für deine erste Anfrage benötigen wir deinen Vor- und Nachnamen. Dein Discord-Konto bleibt dabei unverändert verknüpft.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="grid gap-2 text-sm font-medium">
-              Vorname
-              <Input
-                value={firstName}
-                onChange={(event) => setFirstName(event.target.value)}
-                autoComplete="given-name"
-                minLength={2}
-                maxLength={50}
-                required
-                autoFocus
-              />
-            </label>
-            <label className="grid gap-2 text-sm font-medium">
-              Nachname
-              <Input
-                value={lastName}
-                onChange={(event) => setLastName(event.target.value)}
-                autoComplete="family-name"
-                minLength={2}
-                maxLength={50}
-                required
-              />
-            </label>
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={savingName}>
-              {savingName && <Loader2 className="animate-spin" />}
-              Name speichern und Ticket öffnen
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
 
   // ERP Contract states
   const [contractPriceInput, setContractPriceInput] = useState('');
@@ -509,9 +413,7 @@ export default function TicketsPage({ isModal }) {
   ];
 
   return (
-    <>
-      {profileNameDialog}
-      <div className={`flex gap-4 ${isModal ? 'h-full min-h-[60vh]' : 'h-[calc(100vh-8rem)]'}`}>
+    <div className={`flex gap-4 ${isModal ? 'h-full min-h-[60vh]' : 'h-[calc(100vh-8rem)]'}`}>
       {/* Ticket List */}
       <div className={`${selectedTicket ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-72 lg:w-80 shrink-0`}>
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -934,8 +836,7 @@ export default function TicketsPage({ isModal }) {
             )}
           </div>
         ) : null}
-        </div>
       </div>
-    </>
+    </div>
   );
 }

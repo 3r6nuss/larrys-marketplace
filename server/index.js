@@ -107,8 +107,27 @@ async function setupAndStart() {
     app.use('/api/requests', requestsRoutes);
 
     // Health check
-    app.get('/api/health', (req, res) => {
-      res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    app.get('/api/health', async (req, res) => {
+      const health = {
+        status: 'ok',
+        service: 'larrys',
+        timestamp: new Date().toISOString(),
+        uptimeSeconds: Math.floor(process.uptime()),
+        checks: {
+          api: { status: 'up' },
+          database: { status: 'up', engine: db.pool ? 'postgresql' : 'sqlite' },
+        },
+        memory: process.memoryUsage(),
+      };
+
+      try {
+        await db.query('SELECT 1 AS healthy');
+        res.json(health);
+      } catch (error) {
+        health.status = 'down';
+        health.checks.database = { status: 'down', message: error.message };
+        res.status(503).json(health);
+      }
     });
 
     app.listen(PORT, '0.0.0.0', () => {

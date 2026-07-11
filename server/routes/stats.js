@@ -17,12 +17,14 @@ router.get('/public', async (req, res) => {
   try {
     const q = (sql) => pool.query(sql).then(r => r.rows[0]);
 
+    const total = await q(`SELECT COUNT(*) as count FROM listings`);
     const available = await q(`SELECT COUNT(*) as count FROM listings WHERE status = 'available'`);
     const categories = await q(`SELECT COUNT(DISTINCT category) as count FROM listings WHERE status = 'available' AND category IS NOT NULL`);
     const todayListed = await q(`SELECT COUNT(*) as count FROM listings WHERE date(listed_at) = date('now')`);
     const views = await q(`SELECT COALESCE(SUM(view_count), 0) as total FROM listings`);
 
     res.json({
+      total_listings: toInt(total.count),
       total_available: toInt(available.count),
       total_categories: toInt(categories.count),
       today_listed: toInt(todayListed.count),

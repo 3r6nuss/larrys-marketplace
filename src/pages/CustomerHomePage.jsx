@@ -163,7 +163,7 @@ export default function CustomerHomePage() {
  <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-4 md:h-[500px]">
  {/* Katalog (3x2) */}
  <Tile onClick={() => openModal('catalog')} colSpan="md:col-span-3 md:row-span-2 flex flex-col justify-between" icon={Car} iconColor="text-primary" iconBg="bg-primary/20"
- title="Fahrzeug-Katalog" subtitle="Insgesamt inserierte Fahrzeuge" value={publicStats?.total_listings ?? 0} valueColor="text-primary"
+ title="Fahrzeug-Katalog" subtitle="Insgesamt inserierte Fahrzeuge" value={publicStats?.total_listings ?? publicStats?.total_available ?? 0} valueColor="text-primary"
  cta="Katalog öffnen" borderColor="border-primary/30 hover:border-primary/60">
  {/* Visual enhancements for the large catalog tile */}
  <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[100px] group-hover:bg-primary/20 transition-colors duration-200 pointer-events-none" />

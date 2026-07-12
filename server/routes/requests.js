@@ -166,6 +166,74 @@ router.put('/:id/cancel', requireAuth, async (req, res) => {
 });
 
 /**
+ * GET /api/requests/:id/messages
+ * Customer and staff can read the conversation for a wishlist request.
+ */
+router.get('/:id/messages', requireAuth, async (req, res) => {
+  try {
+    const request = await getRequestById(req.params.id);
+    if (!request) return res.status(404).json({ error: 'Anfrage nicht gefunden.' });
+
+    const isOwner = request.customer_id === req.user.id;
+    if (!isOwner && !isStaffUser(req.user)) {
+      return res.status(403).json({ error: 'Keine Berechtigung.' });
+    }
+
+    const result = await pool.query(
+      `SELECT vrm.*, u.display_name as sender_name, u.avatar_url as sender_avatar, u.role as sender_role
+       FROM vehicle_request_messages vrm
+       LEFT JOIN users u ON vrm.sender_id = u.id
+       WHERE vrm.request_id = ?
+       ORDER BY vrm.created_at ASC, vrm.id ASC`,
+      [request.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Get vehicle request messages error:', err);
+    res.status(500).json({ error: 'Nachrichten konnten nicht geladen werden.' });
+  }
+});
+
+/**
+ * POST /api/requests/:id/messages
+ * Customer and staff can chat after a vehicle has been found.
+ */
+router.post('/:id/messages', requireAuth, async (req, res) => {
+  const message = req.body.message?.trim();
+  if (!message) return res.status(400).json({ error: 'Nachricht darf nicht leer sein.' });
+  if (message.length > 2000) return res.status(400).json({ error: 'Nachricht ist zu lang.' });
+
+  try {
+    const request = await getRequestById(req.params.id);
+    if (!request) return res.status(404).json({ error: 'Anfrage nicht gefunden.' });
+
+    const isOwner = request.customer_id === req.user.id;
+    if (!isOwner && !isStaffUser(req.user)) {
+      return res.status(403).json({ error: 'Keine Berechtigung.' });
+    }
+    if (request.status === 'cancelled') {
+      return res.status(400).json({ error: 'Die Anfrage ist storniert und der Chat geschlossen.' });
+    }
+
+    const limited = await checkRateLimit(req.user.id, 'vehicle_request_message', 10, 30);
+    if (limited) return res.status(429).json({ error: 'Zu viele Nachrichten. Bitte warte kurz.' });
+
+    const created = await pool.query(
+      `INSERT INTO vehicle_request_messages (request_id, sender_id, message) VALUES (?, ?, ?) RETURNING *`,
+      [request.id, req.user.id, message]
+    );
+    await pool.query(`UPDATE vehicle_requests SET updated_at = datetime('now') WHERE id = ?`, [request.id]);
+    await logAction(req.user.id, 'vehicle_request_message', 'vehicle_request', request.id, {}, req.ip);
+    notificationEvents.emit('update');
+
+    res.status(201).json(created.rows[0]);
+  } catch (err) {
+    console.error('Send vehicle request message error:', err);
+    res.status(500).json({ error: 'Nachricht konnte nicht gesendet werden.' });
+  }
+});
+
+/**
  * GET /api/requests/count
  * Quick count of open requests (for dashboard tiles).
  */

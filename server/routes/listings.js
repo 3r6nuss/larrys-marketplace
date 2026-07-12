@@ -38,6 +38,32 @@ async function saveBase64Image(b64) {
   return `/uploads/${filename}`;
 }
 
+/** GET /api/listings/recent?ids=1,2,3 — Public: lightweight recently viewed cards */
+router.get('/recent', async (req, res) => {
+  const ids = String(req.query.ids || '')
+    .split(',')
+    .map(value => Number.parseInt(value, 10))
+    .filter((value, index, values) => Number.isInteger(value) && value > 0 && values.indexOf(value) === index)
+    .slice(0, 5);
+
+  if (ids.length === 0) return res.json([]);
+
+  try {
+    const result = await pool.query(
+      `SELECT l.id, l.brand, l.model, l.category, l.image_path,
+              (SELECT li.image_path FROM listing_images li WHERE li.listing_id = l.id AND li.is_cover = 1 LIMIT 1) as cover_image
+       FROM listings l
+       WHERE l.id IN (${ids.map(() => '?').join(',')})`,
+      ids
+    );
+    const listingsById = new Map(result.rows.map(listing => [Number(listing.id), listing]));
+    res.json(ids.map(id => listingsById.get(id)).filter(Boolean));
+  } catch (err) {
+    console.error('Recent listings error:', err);
+    res.status(500).json({ error: 'Fehler.' });
+  }
+});
+
 /** GET /api/listings/featured — Public: returns featured listings */
 router.get('/featured', async (req, res) => {
   try {

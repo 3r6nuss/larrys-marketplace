@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import {
  Search, Plus, Car, Clock, CheckCircle2, XCircle,
- Loader2, Send, Link2, Sparkles, ArrowRight
+ Loader2, Send, Link2, Sparkles, ArrowRight, MessageCircle
 } from 'lucide-react';
 import VehicleDetailModal from '@/components/VehicleDetailModal';
 
@@ -33,11 +33,17 @@ export default function VehicleRequestsPage({ isModal }) {
  const [showForm, setShowForm] = useState(false);
  const [detailId, setDetailId] = useState(null);
  const [catalog, setCatalog] = useState([]);
+ const [availableListings, setAvailableListings] = useState([]);
 
  // Staff matching
  const [matchingId, setMatchingId] = useState(null);
  const [matchListingId, setMatchListingId] = useState('');
  const [matching, setMatching] = useState(false);
+ const [chatRequestId, setChatRequestId] = useState(null);
+ const [chatMessages, setChatMessages] = useState([]);
+ const [chatMessage, setChatMessage] = useState('');
+ const [chatLoading, setChatLoading] = useState(false);
+ const [chatSending, setChatSending] = useState(false);
 
  const fetchRequests = useCallback(async () => {
   try {
@@ -59,6 +65,14 @@ export default function VehicleRequestsPage({ isModal }) {
    .then(setCatalog)
    .catch(() => {});
  }, []);
+
+ useEffect(() => {
+  if (!isStaff) return;
+  fetch('/api/listings?status=available', { credentials: 'include' })
+   .then(r => r.ok ? r.json() : [])
+   .then(setAvailableListings)
+   .catch(() => {});
+ }, [isStaff]);
 
  const handleCreate = async (e) => {
   e.preventDefault();
@@ -128,6 +142,60 @@ export default function VehicleRequestsPage({ isModal }) {
   }
  };
 
+ const loadChat = async (requestId) => {
+  setChatLoading(true);
+  try {
+   const res = await fetch(`/api/requests/${requestId}/messages`, { credentials: 'include' });
+   if (res.ok) {
+    setChatMessages(await res.json());
+   } else {
+    const data = await res.json();
+    toast.error(data.error || 'Chat konnte nicht geladen werden.');
+   }
+  } catch {
+   toast.error('Chat konnte nicht geladen werden.');
+  } finally {
+   setChatLoading(false);
+  }
+ };
+
+ const toggleChat = (requestId) => {
+  if (chatRequestId === requestId) {
+   setChatRequestId(null);
+   setChatMessage('');
+   return;
+  }
+  setChatRequestId(requestId);
+  setChatMessages([]);
+  setChatMessage('');
+  loadChat(requestId);
+ };
+
+ const sendChatMessage = async () => {
+  const message = chatMessage.trim();
+  if (!message || !chatRequestId || chatSending) return;
+  setChatSending(true);
+  try {
+   const res = await fetch(`/api/requests/${chatRequestId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ message }),
+   });
+   if (res.ok) {
+    setChatMessage('');
+    await loadChat(chatRequestId);
+   } else {
+    const data = await res.json();
+    toast.error(data.error || 'Nachricht konnte nicht gesendet werden.');
+   }
+  } catch {
+   toast.error('Nachricht konnte nicht gesendet werden.');
+  } finally {
+   setChatSending(false);
+  }
+ };
+
  const openRequests = requests.filter(r => r.status === 'open');
  const foundRequests = requests.filter(r => r.status === 'found');
  const closedRequests = requests.filter(r => r.status === 'cancelled');
@@ -136,6 +204,74 @@ export default function VehicleRequestsPage({ isModal }) {
  const catalogModels = catalog
   .filter(v => v.brand.toLowerCase() === (brand || '').toLowerCase())
   .map(v => v.model);
+
+ const getAssignableListings = (request) => [...availableListings].sort((left, right) => {
+  const leftMatches = left.brand?.toLowerCase() === request.brand.toLowerCase()
+   && left.model?.toLowerCase() === request.model.toLowerCase();
+  const rightMatches = right.brand?.toLowerCase() === request.brand.toLowerCase()
+   && right.model?.toLowerCase() === request.model.toLowerCase();
+  if (leftMatches !== rightMatches) return leftMatches ? -1 : 1;
+  return `${left.brand} ${left.model}`.localeCompare(`${right.brand} ${right.model}`);
+ });
+
+ const renderRequestChat = (request, isFound = false) => chatRequestId === request.id && (
+  <div className={`mt-4 border-t ${isFound ? 'border-success/20' : 'border-warning/20'} pt-4 space-y-3 animate-in slide-in-from-top-2 duration-150`}>
+   <div className="flex items-center justify-between">
+    <p className="text-xs font-bold flex items-center gap-1.5">
+     <MessageCircle className={`h-3.5 w-3.5 ${isFound ? 'text-success' : 'text-warning'}`} />
+     Unterhaltung mit {isStaff ? (request.customer_name || 'Kunde') : 'Larry’s Team'}
+    </p>
+    <span className="text-[10px] text-muted-foreground">Zur Fahrzeuganfrage</span>
+   </div>
+
+   <div className="max-h-64 overflow-y-auto rounded-md border border-border/50 bg-background/40 p-3 space-y-3">
+    {chatLoading ? (
+     <div className="py-6 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+    ) : chatMessages.length === 0 ? (
+     <div className="py-6 text-center">
+      <MessageCircle className="h-6 w-6 mx-auto mb-2 text-muted-foreground/40" />
+      <p className="text-xs text-muted-foreground">Noch keine Nachrichten. Starte die Unterhaltung.</p>
+     </div>
+    ) : chatMessages.map(message => {
+     const isOwnMessage = message.sender_id === user?.id;
+     return (
+      <div key={message.id} className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+       <div className={`max-w-[85%] ${isOwnMessage ? 'items-end' : 'items-start'} flex flex-col`}>
+        {!isOwnMessage && <span className="text-[10px] text-muted-foreground mb-1">{message.sender_name || 'Benutzer'}</span>}
+        <div className={`rounded-md px-3 py-2 text-sm whitespace-pre-wrap break-words ${
+         isOwnMessage ? 'bg-primary text-primary-foreground' : 'bg-muted'
+        }`}>
+         {message.message}
+        </div>
+        <span className="text-[9px] text-muted-foreground mt-1">
+         {new Date(message.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+        </span>
+       </div>
+      </div>
+     );
+    })}
+   </div>
+
+   <div className="flex gap-2">
+    <Input
+     value={chatMessage}
+     onChange={e => setChatMessage(e.target.value)}
+     onKeyDown={e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+       e.preventDefault();
+       sendChatMessage();
+      }
+     }}
+     maxLength={2000}
+     placeholder="Nachricht schreiben..."
+     disabled={chatSending}
+    />
+    <Button size="icon" onClick={sendChatMessage} disabled={!chatMessage.trim() || chatSending} className="shrink-0 cursor-pointer" title="Nachricht senden">
+     {chatSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+    </Button>
+   </div>
+  </div>
+ );
 
  return (
   <div className={`space-y-6 ${isModal ? '' : 'max-w-4xl mx-auto'} animate-in fade-in slide-in-from-bottom-4 duration-200`}>
@@ -277,15 +413,23 @@ export default function VehicleRequestsPage({ isModal }) {
             </p>
            </div>
            {r.matched_listing_id && (
-            <Button
-             size="sm"
-             onClick={() => setDetailId(r.matched_listing_id)}
-             className="gap-1.5 cursor-pointer shrink-0"
-            >
-             Ansehen <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
+            <div className="flex gap-2 shrink-0">
+             <Button size="sm" variant="outline" onClick={() => toggleChat(r.id)} className="gap-1.5 cursor-pointer">
+              <MessageCircle className="h-3.5 w-3.5" />
+              {chatRequestId === r.id ? 'Chat schließen' : 'Nachricht'}
+             </Button>
+             <Button
+              size="sm"
+              onClick={() => setDetailId(r.matched_listing_id)}
+              className="gap-1.5 cursor-pointer"
+             >
+              Ansehen <ArrowRight className="h-3.5 w-3.5" />
+             </Button>
+            </div>
            )}
           </div>
+
+          {renderRequestChat(r, true)}
          </CardContent>
         </Card>
        ))}
@@ -319,8 +463,12 @@ export default function VehicleRequestsPage({ isModal }) {
             </p>
            </div>
            <div className="flex items-center gap-2 shrink-0">
+            <Button size="sm" variant="outline" onClick={() => toggleChat(r.id)} className="gap-1.5 cursor-pointer text-xs">
+             <MessageCircle className="h-3.5 w-3.5" />
+             {chatRequestId === r.id ? 'Chat schließen' : 'Chat'}
+            </Button>
             {isStaff && matchingId !== r.id && (
-             <Button size="sm" variant="outline" onClick={() => setMatchingId(r.id)} className="gap-1.5 cursor-pointer text-xs">
+             <Button size="sm" variant="outline" onClick={() => { setMatchingId(r.id); setMatchListingId(''); }} className="gap-1.5 cursor-pointer text-xs">
               <Link2 className="h-3.5 w-3.5" /> Zuweisen
              </Button>
             )}
@@ -332,25 +480,43 @@ export default function VehicleRequestsPage({ isModal }) {
            </div>
           </div>
 
-          {/* Staff matching input */}
+          {/* Staff vehicle picker */}
           {isStaff && matchingId === r.id && (
-           <div className="mt-3 pt-3 border-t border-border/40 flex gap-2 animate-in slide-in-from-top-2 duration-150">
-            <Input
-             type="number"
-             value={matchListingId}
-             onChange={e => setMatchListingId(e.target.value)}
-             placeholder="Listing-ID eingeben..."
-             className="flex-1"
-            />
-            <Button size="sm" onClick={() => handleMatch(r.id)} disabled={matching || !matchListingId.trim()} className="gap-1.5 cursor-pointer">
-             {matching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-             Bestätigen
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => { setMatchingId(null); setMatchListingId(''); }} className="cursor-pointer">
-             Abbrechen
-            </Button>
+           <div className="mt-3 pt-3 border-t border-border/40 space-y-2 animate-in slide-in-from-top-2 duration-150">
+            <p className="text-xs font-semibold">Verfügbares Fahrzeug auswählen</p>
+            <div className="flex flex-col sm:flex-row gap-2">
+             <Select value={matchListingId} onValueChange={setMatchListingId}>
+              <SelectTrigger className="flex-1 cursor-pointer">
+               <SelectValue placeholder={availableListings.length ? 'Fahrzeug auswählen...' : 'Keine Fahrzeuge verfügbar'} />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+               {getAssignableListings(r).map(listing => {
+                const exactMatch = listing.brand?.toLowerCase() === r.brand.toLowerCase()
+                 && listing.model?.toLowerCase() === r.model.toLowerCase();
+                return (
+                 <SelectItem key={listing.id} value={String(listing.id)} className="cursor-pointer">
+                  <span className="font-medium">{listing.brand} {listing.model}</span>
+                  <span className="text-muted-foreground">
+                   {listing.plate ? ` · ${listing.plate}` : ''}
+                   {listing.seller_name ? ` · ${listing.seller_name}` : ''}
+                   {exactMatch ? ' · Passender Treffer' : ''}
+                  </span>
+                 </SelectItem>
+                );
+               })}
+              </SelectContent>
+             </Select>
+             <Button size="sm" onClick={() => handleMatch(r.id)} disabled={matching || !matchListingId} className="gap-1.5 cursor-pointer">
+              {matching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+              Zuweisen
+             </Button>
+             <Button size="sm" variant="ghost" onClick={() => { setMatchingId(null); setMatchListingId(''); }} className="cursor-pointer">
+              Abbrechen
+             </Button>
+            </div>
            </div>
           )}
+          {renderRequestChat(r)}
          </CardContent>
         </Card>
        ))}

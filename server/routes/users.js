@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { requireAuth, requireRole, logAction, ROLE_HIERARCHY } from '../middleware/auth.js';
+import { requireAuth, requireRole, logAction, checkRateLimit, ROLE_HIERARCHY } from '../middleware/auth.js';
+import discordBot, { sendDM, createEmbed } from '../discord-bot.js';
 
 const router = Router();
 const VALID_ROLES = ['kunde', 'mitarbeiter', 'inhaber', 'stv_admin', 'superadmin'];
@@ -68,6 +69,35 @@ router.put('/me/profile-name', requireAuth, async (req, res) => {
     console.error('Profile name update error:', err);
     res.status(500).json({ error: 'Der Name konnte nicht gespeichert werden.' });
   }
+});
+
+/** POST /api/users/me/test-discord-dm */
+router.post('/me/test-discord-dm', requireAuth, requireRole('inhaber'), async (req, res) => {
+  const message = req.body.message?.trim();
+  if (!message) return res.status(400).json({ error: 'Bitte gib eine Testnachricht ein.' });
+  if (message.length > 1000) return res.status(400).json({ error: 'Die Nachricht darf maximal 1000 Zeichen lang sein.' });
+  if (!req.user.discord_id || req.user.discord_id.startsWith('dev_') || req.user.discord_id.startsWith('virtual_')) {
+    return res.status(400).json({ error: 'Dein Konto ist nicht mit einem echten Discord-Konto verknüpft.' });
+  }
+  if (!discordBot.isReady()) {
+    return res.status(503).json({ error: 'Der Discord-Bot ist nicht verbunden. Prüfe Token und Server-Logs.' });
+  }
+
+  const limited = await checkRateLimit(req.user.id, 'discord_test_dm', 3, 60);
+  if (limited) return res.status(429).json({ error: 'Maximal drei Testnachrichten pro Minute.' });
+
+  const embed = createEmbed()
+    .setTitle('Discord-Testnachricht')
+    .setDescription(message)
+    .addFields({ name: 'Gesendet von', value: req.user.display_name || req.user.username || 'Administrator' });
+
+  const sent = await sendDM(req.user.discord_id, embed);
+  if (!sent) {
+    return res.status(502).json({ error: 'Discord hat die DM abgelehnt. Prüfe, ob Direktnachrichten für den Server erlaubt sind.' });
+  }
+
+  await logAction(req.user.id, 'discord_test_dm_sent', 'user', req.user.id, {}, req.ip);
+  res.json({ success: true });
 });
 
 /** PUT /api/users/:id/role */

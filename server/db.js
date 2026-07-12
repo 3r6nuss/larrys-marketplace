@@ -430,6 +430,16 @@ export async function migrate() {
     `);
 
     await client.query(`
+      CREATE TABLE IF NOT EXISTS vehicle_request_messages (
+        id          SERIAL PRIMARY KEY,
+        request_id  INTEGER NOT NULL,
+        sender_id   INTEGER NOT NULL,
+        message     TEXT NOT NULL,
+        created_at  TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS rate_limits (
         id          SERIAL PRIMARY KEY,
         user_id     INTEGER NOT NULL,
@@ -442,13 +452,19 @@ export async function migrate() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_listings_seller ON listings(seller_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_listings_featured ON listings(is_featured)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_listings_status_listed ON listings(status, listed_at DESC)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_listings_featured_status ON listings(is_featured, status)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_listings_seller_status ON listings(seller_id, status)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_tickets_customer ON tickets(customer_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_tickets_assigned ON tickets(assigned_to)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_listing_images_listing ON listing_images(listing_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_listing_images_order ON listing_images(listing_id, sort_order)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_vault_owner ON vault_entries(owner_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_vehicle_requests_customer ON vehicle_requests(customer_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_vehicle_requests_status ON vehicle_requests(status)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_vehicle_request_messages_request ON vehicle_request_messages(request_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC)`);
 
     if (client.release) client.release();
     console.log('✅ Database migrations complete');

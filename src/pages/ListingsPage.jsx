@@ -698,38 +698,45 @@ export default function ListingsPage() {
  <div className="grid grid-cols-2 gap-3">
  <div className="space-y-1.5">
  <Label htmlFor="brand">Marke *</Label>
- <Select value={form.brand} onValueChange={v => setForm(f => ({ ...f, brand: v, model: '' }))}>
- <SelectTrigger id="brand" className="cursor-pointer"><SelectValue placeholder="Marke wählen..." /></SelectTrigger>
- <SelectContent className="max-h-60">
- {[...new Set(vehicleOptions.map(v => v.brand))].sort().map(b => (
- <SelectItem key={b} value={b} className="cursor-pointer">{b}</SelectItem>
- ))}
- </SelectContent>
- </Select>
+ <Input
+ id="brand"
+ list="vehicle-brand-options"
+ value={form.brand}
+ onChange={e => setForm(f => ({ ...f, brand: e.target.value }))}
+ placeholder="Marke wählen oder eingeben..."
+ autoComplete="off"
+ />
+ <datalist id="vehicle-brand-options">
+ {[...new Set(vehicleOptions.map(v => v.brand))].sort().map(b => <option key={b} value={b} />)}
+ </datalist>
  </div>
  <div className="space-y-1.5">
   <Label htmlFor="model">Modell *</Label>
-  <Select value={form.model} onValueChange={v => {
+  <Input
+   id="model"
+   list="vehicle-model-options"
+   value={form.model}
+   onChange={e => {
+   const value = e.target.value;
    const catItem = catalog.find(item => 
     item.brand.toLowerCase() === form.brand.toLowerCase() && 
-    item.model.toLowerCase() === v.toLowerCase()
+    item.model.toLowerCase() === value.toLowerCase()
    );
    let price = form.custom_price;
    if (catItem) {
     price = Math.floor((catItem.min_sell_price + catItem.max_sell_price) / 2).toString();
    }
-   setForm(f => ({ ...f, model: v, custom_price: price }));
-  }} disabled={!form.brand}>
- <SelectTrigger id="model" className="cursor-pointer"><SelectValue placeholder={form.brand ? "Modell wählen..." : "Erst Marke wählen"} /></SelectTrigger>
- <SelectContent className="max-h-60">
+   setForm(f => ({ ...f, model: value, custom_price: price }));
+  }}
+  placeholder="Modell wählen oder eingeben..."
+  autoComplete="off"
+  />
+ <datalist id="vehicle-model-options">
  {vehicleOptions
  .filter(v => v.brand.toLowerCase() === (form.brand || '').toLowerCase())
- .map(v => (
- <SelectItem key={`${v.brand}-${v.model}`} value={v.model} className="cursor-pointer">{v.model}</SelectItem>
- ))
+ .map(v => <option key={`${v.brand}-${v.model}`} value={v.model} />)
  }
- </SelectContent>
- </Select>
+ </datalist>
  </div>
  </div>
 

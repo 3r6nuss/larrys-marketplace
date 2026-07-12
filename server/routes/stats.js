@@ -15,20 +15,23 @@ const toInt = (value) => Number.parseInt(value, 10) || 0;
  */
 router.get('/public', async (req, res) => {
   try {
-    const q = (sql) => pool.query(sql).then(r => r.rows[0]);
-
-    const total = await q(`SELECT COUNT(*) as count FROM listings`);
-    const available = await q(`SELECT COUNT(*) as count FROM listings WHERE status = 'available'`);
-    const categories = await q(`SELECT COUNT(DISTINCT category) as count FROM listings WHERE status = 'available' AND category IS NOT NULL`);
-    const todayListed = await q(`SELECT COUNT(*) as count FROM listings WHERE date(listed_at) = date('now')`);
-    const views = await q(`SELECT COALESCE(SUM(view_count), 0) as total FROM listings`);
+    const result = await pool.query(`
+      SELECT
+        COUNT(*) AS total_listings,
+        SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) AS total_available,
+        COUNT(DISTINCT CASE WHEN status = 'available' THEN category END) AS total_categories,
+        SUM(CASE WHEN DATE(listed_at) = CURRENT_DATE THEN 1 ELSE 0 END) AS today_listed,
+        COALESCE(SUM(view_count), 0) AS total_views
+      FROM listings
+    `);
+    const stats = result.rows[0];
 
     res.json({
-      total_listings: toInt(total.count),
-      total_available: toInt(available.count),
-      total_categories: toInt(categories.count),
-      today_listed: toInt(todayListed.count),
-      total_views: toInt(views.total),
+      total_listings: toInt(stats.total_listings),
+      total_available: toInt(stats.total_available),
+      total_categories: toInt(stats.total_categories),
+      today_listed: toInt(stats.today_listed),
+      total_views: toInt(stats.total_views),
     });
   } catch (err) {
     console.error('Public stats error:', err);

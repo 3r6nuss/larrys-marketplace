@@ -76,8 +76,12 @@ export default function CustomerHomePage() {
  useEffect(() => {
  const ids = recentIds.slice(0, 5);
  if (!ids.length) { setRecentListings([]); return; }
- Promise.all(ids.map(id => fetch(`/api/listings/${id}`, { credentials: 'include' }).then(r => r.ok ? r.json() : null).catch(() => null)))
- .then(r => setRecentListings(r.filter(Boolean)));
+ const controller = new AbortController();
+ fetch(`/api/listings/recent?ids=${ids.join(',')}`, { signal: controller.signal })
+ .then(r => r.ok ? r.json() : [])
+ .then(setRecentListings)
+ .catch(err => { if (err.name !== 'AbortError') console.error(err); });
+ return () => controller.abort();
  }, [recentIds]);
 
  // Auto-rotate featured

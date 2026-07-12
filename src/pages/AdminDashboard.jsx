@@ -4,9 +4,12 @@ import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
 import {
   ArrowRight, BarChart3, Users, ScrollText, Database,
-  Trophy, History, Crown, Shield, StickyNote
+  Trophy, History, Crown, Shield, StickyNote, Bot, Send, Loader2
 } from 'lucide-react';
 import PopupShell from '@/components/PopupShell';
 import OnboardingOverlay from '@/components/Onboarding/OnboardingOverlay';
@@ -18,6 +21,8 @@ export default function AdminDashboard() {
   const [adminStats, setAdminStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState('');
+  const [discordTestMessage, setDiscordTestMessage] = useState('Dies ist eine Testnachricht von Larry’s Marketplace.');
+  const [sendingDiscordTest, setSendingDiscordTest] = useState(false);
 
   const currentDate = new Date().toLocaleDateString('de-DE', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -48,6 +53,30 @@ export default function AdminDashboard() {
 
   const openModal = (name) => setSearchParams({ modal: name });
   const closeModal = () => setSearchParams({});
+
+  const sendDiscordTest = async () => {
+    const message = discordTestMessage.trim();
+    if (!message || sendingDiscordTest) return;
+    setSendingDiscordTest(true);
+    try {
+      const res = await fetch('/api/users/me/test-discord-dm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ message }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('Test-DM wurde an dein Discord-Konto gesendet.');
+      } else {
+        toast.error(data.error || 'Test-DM konnte nicht gesendet werden.');
+      }
+    } catch {
+      toast.error('Backend nicht erreichbar.');
+    } finally {
+      setSendingDiscordTest(false);
+    }
+  };
 
   // Tile helper
   const Tile = ({ id, onClick, colSpan = '', icon: Icon, iconColor, iconBg, title, subtitle, value, valueColor, cta, borderColor = 'border-border/50', children }) => (
@@ -198,6 +227,32 @@ export default function AdminDashboard() {
           </div>
         </Tile>
       </div>
+
+      {/* Discord bot test */}
+      <Card className="bg-card/60 border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-xl font-bold flex items-center gap-2">
+            <Bot className="h-6 w-6 text-chart-2" /> Discord-Bot testen
+          </CardTitle>
+          <CardDescription>Sendet eine Test-DM an dein eigenes verknüpftes Discord-Konto.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Textarea
+            value={discordTestMessage}
+            onChange={event => setDiscordTestMessage(event.target.value)}
+            maxLength={1000}
+            placeholder="Testnachricht eingeben..."
+            className="min-h-20 resize-y"
+          />
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-muted-foreground">{discordTestMessage.length}/1000 Zeichen</span>
+            <Button onClick={sendDiscordTest} disabled={!discordTestMessage.trim() || sendingDiscordTest} className="gap-1.5 cursor-pointer">
+              {sendingDiscordTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Test-DM senden
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Admin Notizblock */}
       <Card className="bg-card/60 border-border/50 hover:shadow-lg transition-all">

@@ -31,6 +31,7 @@ export default function CustomerHomePage() {
  const [newestIndex, setNewestIndex] = useState(0);
  const [detailId, setDetailId] = useState(null);
  const [requestStats, setRequestStats] = useState(null);
+ const [availableListingCount, setAvailableListingCount] = useState(0);
 
  const getGreeting = () => {
  const h = new Date().getHours();
@@ -47,15 +48,17 @@ export default function CustomerHomePage() {
  fetch('/api/stats/public', { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
  fetch('/api/listings/featured').then(r => r.ok ? r.json() : []),
  fetch('/api/listings/newest').then(r => r.ok ? r.json() : []),
+ fetch('/api/listings?status=available', { credentials: 'include', cache: 'no-store' }).then(r => r.ok ? r.json() : []),
  ];
  if (user) {
  fetches.push(fetch('/api/stats/customer', { credentials: 'include' }).then(r => r.ok ? r.json() : null));
  fetches.push(fetch('/api/requests/count', { credentials: 'include' }).then(r => r.ok ? r.json() : null));
  }
- Promise.all(fetches).then(([stats, feat, newst, custStats, reqStats]) => {
+ Promise.all(fetches).then(([stats, feat, newst, availableListings, custStats, reqStats]) => {
  setPublicStats(stats);
  setFeatured(feat || []);
  setNewest(newst || []);
+ setAvailableListingCount(availableListings?.length || 0);
  if (custStats) setCustomerStats(custStats);
  if (reqStats) setRequestStats(reqStats);
  }).catch(console.error).finally(() => setLoading(false));
@@ -63,9 +66,14 @@ export default function CustomerHomePage() {
 
  useEffect(() => {
  const refreshPublicStats = () => {
- fetch('/api/stats/public', { cache: 'no-store' })
- .then(r => r.ok ? r.json() : null)
- .then(stats => { if (stats) setPublicStats(stats); })
+ Promise.all([
+ fetch('/api/stats/public', { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
+ fetch('/api/listings?status=available', { credentials: 'include', cache: 'no-store' }).then(r => r.ok ? r.json() : []),
+ ])
+ .then(([stats, availableListings]) => {
+ if (stats) setPublicStats(stats);
+ setAvailableListingCount(availableListings?.length || 0);
+ })
  .catch(console.error);
  };
  window.addEventListener('focus', refreshPublicStats);
@@ -167,7 +175,7 @@ export default function CustomerHomePage() {
  <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-4 md:h-[500px]">
  {/* Katalog (3x2) */}
  <Tile onClick={() => openModal('catalog')} colSpan="md:col-span-3 md:row-span-2 flex flex-col justify-between" icon={Car} iconColor="text-primary" iconBg="bg-primary/20"
- title="Fahrzeug-Katalog" subtitle="Insgesamt inserierte Fahrzeuge" value={publicStats?.total_listings ?? publicStats?.total_available ?? 0} valueColor="text-primary"
+ title="Fahrzeug-Katalog" subtitle="Aktuell verfügbare Fahrzeuge" value={availableListingCount} valueColor="text-primary"
  cta="Katalog öffnen" borderColor="border-primary/30 hover:border-primary/60">
  {/* Visual enhancements for the large catalog tile */}
  <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[100px] group-hover:bg-primary/20 transition-colors duration-200 pointer-events-none" />
@@ -187,15 +195,18 @@ export default function CustomerHomePage() {
  </CardHeader>
  <CardContent className="flex-1 p-0 relative group">
  {loading ? <Skeleton className="h-full w-full" /> 
- : newest.length > 0 ? newest.map((l, i) => (
- <div className={`absolute inset-0 transition-opacity duration-200 ${i === (newestIndex % newest.length) ? 'opacity-100 z-10' : 'opacity-0 z-0'}`} key={l.id}>
- {(l.cover_image || l.image_path) ? <img loading='lazy' src={l.cover_image || l.image_path} alt="" className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-150" /> : <div className="h-full w-full bg-gradient-to-br from-muted/50 to-background flex items-center justify-center"><div className="p-4 rounded-full bg-background/50 shadow-inner"><Car className="h-10 w-10 text-muted-foreground/40 group-hover:text-primary/60 group-hover:scale-110 transition-all duration-200" /></div></div>}
+ : newest.length > 0 ? (() => {
+ const listing = newest[newestIndex % newest.length];
+ return (
+ <div className="absolute inset-0 animate-in fade-in duration-200" key={listing.id}>
+ {(listing.cover_image || listing.image_path) ? <img loading="eager" decoding="async" fetchPriority="high" src={listing.cover_image || listing.image_path} alt="" className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-150" /> : <div className="h-full w-full bg-gradient-to-br from-muted/50 to-background flex items-center justify-center"><div className="p-4 rounded-full bg-background/50 shadow-inner"><Car className="h-10 w-10 text-muted-foreground/40 group-hover:text-primary/60 group-hover:scale-110 transition-all duration-200" /></div></div>}
  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-background/95 via-background/80 to-transparent p-4 pt-16">
- <p className="font-extrabold text-lg truncate leading-tight drop-shadow-md text-foreground">{l.brand} {l.model}</p>
- {l.category && <Badge className="bg-primary/20 text-primary hover:bg-primary/30 border-primary/20 text-[10px] mt-1.5 shadow-sm">{l.category}</Badge>}
+ <p className="font-extrabold text-lg truncate leading-tight drop-shadow-md text-foreground">{listing.brand} {listing.model}</p>
+ {listing.category && <Badge className="bg-primary/20 text-primary hover:bg-primary/30 border-primary/20 text-[10px] mt-1.5 shadow-sm">{listing.category}</Badge>}
  </div>
  </div>
- )) : <div className="p-4 h-full flex flex-col items-center justify-center text-muted-foreground text-xs bg-gradient-to-br from-muted/30 to-background"><div className="p-3 rounded-full bg-muted/50 mb-2"><Car className="h-6 w-6 opacity-40"/></div>Keine Angebote</div>}
+ );
+ })() : <div className="p-4 h-full flex flex-col items-center justify-center text-muted-foreground text-xs bg-gradient-to-br from-muted/30 to-background"><div className="p-3 rounded-full bg-muted/50 mb-2"><Car className="h-6 w-6 opacity-40"/></div>Keine Angebote</div>}
  </CardContent>
  </Card>
 
@@ -206,15 +217,18 @@ export default function CustomerHomePage() {
  </CardHeader>
  <CardContent className="flex-1 p-0 relative group">
  {loading ? <Skeleton className="h-full w-full" /> 
- : featured.length > 0 ? featured.map((l, i) => (
- <div className={`absolute inset-0 transition-opacity duration-200 ${i === (featuredIndex % featured.length) ? 'opacity-100 z-10' : 'opacity-0 z-0'}`} key={l.id}>
- {(l.cover_image || l.image_path) ? <img loading='lazy' src={l.cover_image || l.image_path} alt="" className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-150" /> : <div className="h-full w-full bg-gradient-to-br from-orange-950/20 to-background flex items-center justify-center"><div className="p-4 rounded-full bg-background/50 shadow-inner"><Car className="h-10 w-10 text-orange-500/20 group-hover:text-orange-500/60 group-hover:scale-110 transition-all duration-200" /></div></div>}
+ : featured.length > 0 ? (() => {
+ const listing = featured[featuredIndex % featured.length];
+ return (
+ <div className="absolute inset-0 animate-in fade-in duration-200" key={listing.id}>
+ {(listing.cover_image || listing.image_path) ? <img loading="eager" decoding="async" src={listing.cover_image || listing.image_path} alt="" className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-150" /> : <div className="h-full w-full bg-gradient-to-br from-orange-950/20 to-background flex items-center justify-center"><div className="p-4 rounded-full bg-background/50 shadow-inner"><Car className="h-10 w-10 text-orange-500/20 group-hover:text-orange-500/60 group-hover:scale-110 transition-all duration-200" /></div></div>}
  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-background/95 via-background/80 to-transparent p-4 pt-16">
- <p className="font-extrabold text-lg truncate leading-tight drop-shadow-md text-orange-50">{l.brand} {l.model}</p>
- {l.category && <Badge className="bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border-orange-500/30 text-[10px] mt-1.5 shadow-sm">{l.category}</Badge>}
+ <p className="font-extrabold text-lg truncate leading-tight drop-shadow-md text-orange-50">{listing.brand} {listing.model}</p>
+ {listing.category && <Badge className="bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border-orange-500/30 text-[10px] mt-1.5 shadow-sm">{listing.category}</Badge>}
  </div>
  </div>
- )) : <div className="p-4 h-full flex flex-col items-center justify-center text-muted-foreground text-xs bg-gradient-to-br from-muted/30 to-background"><div className="p-3 rounded-full bg-muted/50 mb-2"><Star className="h-6 w-6 opacity-40"/></div>Keine Empfehlungen</div>}
+ );
+ })() : <div className="p-4 h-full flex flex-col items-center justify-center text-muted-foreground text-xs bg-gradient-to-br from-muted/30 to-background"><div className="p-3 rounded-full bg-muted/50 mb-2"><Star className="h-6 w-6 opacity-40"/></div>Keine Empfehlungen</div>}
  </CardContent>
  </Card>
  </div>

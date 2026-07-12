@@ -100,21 +100,52 @@ router.get('/newest', async (req, res) => {
   }
 });
 
+/** GET /api/listings/filters — Public catalog filter metadata */
+router.get('/filters', async (req, res) => {
+  try {
+    const [categoryResult, priceResult] = await Promise.all([
+      pool.query(`SELECT DISTINCT category FROM listings WHERE status = 'available' AND category IS NOT NULL AND category != '' ORDER BY category ASC`),
+      pool.query(`SELECT MIN(custom_price) as min_price, MAX(custom_price) as max_price FROM listings WHERE status = 'available' AND custom_price IS NOT NULL`),
+    ]);
+    res.json({
+      categories: categoryResult.rows.map(row => row.category),
+      min_price: Number.parseInt(priceResult.rows[0]?.min_price, 10) || 0,
+      max_price: Number.parseInt(priceResult.rows[0]?.max_price, 10) || 0,
+    });
+  } catch (err) {
+    console.error('Listing filters error:', err);
+    res.status(500).json({ error: 'Filter konnten nicht geladen werden.' });
+  }
+});
+
 /** GET /api/listings */
 router.get('/', optionalAuth, async (req, res) => {
-  const { category, q, seller_id, status = 'available' } = req.query;
+  const { category, q, seller_id, status = 'available', sort = 'newest', min_price, max_price } = req.query;
   let where = [];
   let params = [];
+
+  const minPrice = Number.parseInt(min_price, 10);
+  const maxPrice = Number.parseInt(max_price, 10);
+  const orderBy = {
+    newest: 'l.listed_at DESC',
+    oldest: 'l.listed_at ASC',
+    name_asc: 'l.brand ASC, l.model ASC',
+    name_desc: 'l.brand DESC, l.model DESC',
+    price_asc: 'CASE WHEN l.custom_price IS NULL THEN 1 ELSE 0 END, l.custom_price ASC',
+    price_desc: 'CASE WHEN l.custom_price IS NULL THEN 1 ELSE 0 END, l.custom_price DESC',
+  }[sort] || 'l.listed_at DESC';
 
   if (category && category !== 'all') { where.push('l.category = ?'); params.push(category); }
   if (status && status !== 'all') { where.push('l.status = ?'); params.push(status); }
   if (seller_id) { where.push('l.seller_id = ?'); params.push(seller_id); }
   if (q) { where.push('(l.brand LIKE ? OR l.model LIKE ? OR l.plate LIKE ?)'); params.push(`%${q}%`, `%${q}%`, `%${q}%`); }
+  if (Number.isFinite(minPrice) && minPrice >= 0) { where.push('l.custom_price >= ?'); params.push(minPrice); }
+  if (Number.isFinite(maxPrice) && maxPrice >= 0) { where.push('l.custom_price <= ?'); params.push(maxPrice); }
 
   const sql = `SELECT l.*, u.display_name as seller_name, u.avatar_url as seller_avatar
                FROM listings l LEFT JOIN users u ON l.seller_id = u.id
                ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-               ORDER BY l.listed_at DESC`;
+               ORDER BY ${orderBy}`;
   try {
     const result = await pool.query(sql, params);
     const isMitarbeiter = isStaffUser(req.user);

@@ -11,7 +11,7 @@ import {
  Dialog, DialogContent, DialogHeader, DialogTitle,
  DialogDescription, DialogFooter
 } from '@/components/ui/dialog';
-import { Car, Search, MessageSquare, Filter, LogIn, Images } from 'lucide-react';
+import { Car, Search, MessageSquare, Filter, LogIn, Images, ArrowUpDown, RotateCcw, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import VehicleDetailModal from '@/components/VehicleDetailModal';
@@ -29,6 +29,10 @@ export default function CatalogPage() {
  const [searchQuery, setSearchQuery] = useState('');
  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
  const [categoryFilter, setCategoryFilter] = useState('all');
+ const [sortOrder, setSortOrder] = useState('newest');
+ const [priceFilter, setPriceFilter] = useState({ min: '', max: '' });
+ const [debouncedPriceFilter, setDebouncedPriceFilter] = useState({ min: '', max: '' });
+ const [filterOptions, setFilterOptions] = useState({ categories: [], min_price: 0, max_price: 0 });
  const [loginPrompt, setLoginPrompt] = useState(null);
  const [detailId, setDetailId] = useState(null); // Pokémon-card modal
 
@@ -40,11 +44,27 @@ export default function CatalogPage() {
  return () => clearTimeout(timeout);
  }, [searchQuery]);
 
+ useEffect(() => {
+ const timeout = setTimeout(() => setDebouncedPriceFilter(priceFilter), 400);
+ return () => clearTimeout(timeout);
+ }, [priceFilter]);
+
+ useEffect(() => {
+ fetch('/api/listings/filters')
+ .then(res => res.ok ? res.json() : null)
+ .then(data => { if (data) setFilterOptions(data); })
+ .catch(() => {});
+ }, []);
+
  const fetchListings = useCallback(async () => {
  try {
  const params = new URLSearchParams();
+ params.set('status', 'available');
  if (categoryFilter && categoryFilter !== 'all') params.set('category', categoryFilter);
  if (debouncedSearchQuery) params.set('q', debouncedSearchQuery);
+ params.set('sort', sortOrder);
+ if (debouncedPriceFilter.min !== '') params.set('min_price', debouncedPriceFilter.min);
+ if (debouncedPriceFilter.max !== '') params.set('max_price', debouncedPriceFilter.max);
 
  const res = await fetch(`/api/listings?${params}`, { credentials: 'include' });
  if (res.ok) {
@@ -56,7 +76,7 @@ export default function CatalogPage() {
  } finally {
  setLoading(false);
  }
- }, [categoryFilter, debouncedSearchQuery]);
+ }, [categoryFilter, debouncedSearchQuery, sortOrder, debouncedPriceFilter]);
 
  useEffect(() => { fetchListings(); }, [fetchListings]);
 
@@ -83,11 +103,6 @@ export default function CatalogPage() {
  login();
  };
 
- const categories = useMemo(
- () => [...new Set(listings.map((l) => l.category).filter(Boolean))],
- [listings],
- );
-
  const filteredListings = useMemo(() => {
  if (!searchQuery) return listings;
 
@@ -99,6 +114,15 @@ export default function CatalogPage() {
  return terms.every((term) => fullText.includes(term));
  });
  }, [listings, searchQuery]);
+
+ const hasActiveFilters = searchQuery || categoryFilter !== 'all' || sortOrder !== 'newest' || priceFilter.min || priceFilter.max;
+
+ const resetFilters = () => {
+ setSearchQuery('');
+ setCategoryFilter('all');
+ setSortOrder('newest');
+ setPriceFilter({ min: '', max: '' });
+ };
 
  const STATUS_BADGE = {
  available: { label: 'Verfügbar', variant: 'default' },
@@ -133,11 +157,57 @@ export default function CatalogPage() {
  </SelectTrigger>
  <SelectContent>
  <SelectItem value="all">Alle Kategorien</SelectItem>
- {categories.map(cat => (
+ {filterOptions.categories.map(cat => (
  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
  ))}
  </SelectContent>
  </Select>
+ <Select value={sortOrder} onValueChange={setSortOrder}>
+ <SelectTrigger className="w-[190px]">
+ <ArrowUpDown className="h-4 w-4 mr-2" />
+ <SelectValue placeholder="Sortieren" />
+ </SelectTrigger>
+ <SelectContent>
+ <SelectItem value="newest">Neueste zuerst</SelectItem>
+ <SelectItem value="oldest">Älteste zuerst</SelectItem>
+ <SelectItem value="name_asc">Name A–Z</SelectItem>
+ <SelectItem value="name_desc">Name Z–A</SelectItem>
+ <SelectItem value="price_asc">Preis aufsteigend</SelectItem>
+ <SelectItem value="price_desc">Preis absteigend</SelectItem>
+ </SelectContent>
+ </Select>
+ <div className="flex items-center gap-2">
+ <div className="relative w-[130px]">
+ <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+ <Input
+ type="number"
+ min="0"
+ value={priceFilter.min}
+ onChange={event => setPriceFilter(current => ({ ...current, min: event.target.value }))}
+ placeholder={filterOptions.min_price ? `Ab ${filterOptions.min_price}` : 'Min. Preis'}
+ className="pl-8"
+ aria-label="Mindestpreis"
+ />
+ </div>
+ <span className="text-muted-foreground text-xs">bis</span>
+ <div className="relative w-[130px]">
+ <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+ <Input
+ type="number"
+ min="0"
+ value={priceFilter.max}
+ onChange={event => setPriceFilter(current => ({ ...current, max: event.target.value }))}
+ placeholder={filterOptions.max_price ? `Bis ${filterOptions.max_price}` : 'Max. Preis'}
+ className="pl-8"
+ aria-label="Höchstpreis"
+ />
+ </div>
+ </div>
+ {hasActiveFilters && (
+ <Button variant="ghost" size="sm" onClick={resetFilters} className="gap-1.5 cursor-pointer text-muted-foreground">
+ <RotateCcw className="h-3.5 w-3.5" /> Zurücksetzen
+ </Button>
+ )}
  <Badge variant="secondary" className="text-sm">
  {filteredListings.length} Fahrzeuge
  </Badge>
@@ -179,6 +249,8 @@ export default function CatalogPage() {
  <div className="relative h-48 bg-muted overflow-hidden">
  {displayImage ? (
  <img
+ loading="lazy"
+ decoding="async"
  src={displayImage}
  alt={`${listing.brand} ${listing.model}`}
  className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-200"

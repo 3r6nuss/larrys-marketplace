@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
+import { getThumbnailImagePath } from '@/lib/utils';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -255,7 +256,7 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
  : 'border-transparent opacity-60 hover:opacity-100'
  }`}
  >
- <img loading='lazy' src={img.image_path} alt="" className="h-full w-full object-cover" />
+ <img loading='lazy' src={getThumbnailImagePath(img.image_path)} alt="" className="h-full w-full object-cover" />
  </button>
  ))}
  </div>

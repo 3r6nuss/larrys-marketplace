@@ -48,8 +48,8 @@ export default function PopupShell({ activeModal, onClose }) {
 
  return (
  <Dialog open={!!activeModal} onOpenChange={(open) => !open && onClose()}>
- <DialogContent className="max-w-[95vw] sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[1200px] xl:max-w-[1350px] w-full h-[90vh] overflow-y-auto bg-background/95 border-border/50">
- <div className="p-2 h-full">
+ <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[1200px] xl:max-w-[1350px] h-[90vh] overflow-x-hidden overflow-y-auto bg-background/95 border-border/50">
+ <div className="min-w-0 p-0 sm:p-2 h-full">
  <Suspense fallback={<ModalFallback />}>
  {ModalComponent && <ModalComponent isModal />}
  </Suspense>

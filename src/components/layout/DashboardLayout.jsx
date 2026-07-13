@@ -7,6 +7,8 @@ import { useNotifications } from '@/context/NotificationContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { setCatalogSparMode, useCatalogSparMode } from '@/hooks/useCatalogSparMode';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +19,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
-import { LogOut, User, Ticket, ChevronDown, Shield, Crown, Briefcase, Users, UserCircle } from 'lucide-react';
+import { LogOut, User, Ticket, ChevronDown, Shield, Crown, Briefcase, Users, UserCircle, Gauge } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import ViewSwitcher from '@/components/ViewSwitcher';
 
@@ -58,6 +60,7 @@ export default function DashboardLayout() {
   const { openTickets } = useNotifications();
   const [, setSearchParams] = useSearchParams();
   const [virtualUsers, setVirtualUsers] = useState([]);
+  const sparMode = useCatalogSparMode();
 
   const canSwitch = user && (['superadmin', 'stv_admin', 'inhaber'].includes(user.role) || user.is_impersonating);
 
@@ -109,6 +112,18 @@ export default function DashboardLayout() {
 
           {/* Right: User area */}
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-2 py-1.5 transition-colors hover:border-primary/40 hover:bg-primary/5">
+              <Gauge className={`size-3.5 ${sparMode ? 'text-primary' : 'text-muted-foreground'}`} />
+              <span id="spar-mode-label" className="text-xs font-semibold">Sparmodus</span>
+              <Switch
+                id="catalog-spar-mode"
+                size="sm"
+                checked={sparMode}
+                onCheckedChange={setCatalogSparMode}
+                aria-labelledby="spar-mode-label"
+              />
+            </div>
+
             {/* Ticket Badge (quick access) */}
             {user && openTickets > 0 && (
               <button

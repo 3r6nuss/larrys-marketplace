@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
 import pool from '../db.js';
 import { requireAuth, optionalAuth, requireRole, logAction } from '../middleware/auth.js';
 import { canManageOwnedResource, toCount, toId, toInt, userHasRole } from '../lib/route-helpers.js';
+import { deleteListingImageFiles, saveListingImage } from '../lib/listing-images.js';
 
 const router = Router();
 const ADMIN_ROLES = new Set(['superadmin', 'stv_admin', 'inhaber']);
@@ -22,20 +22,27 @@ const canManageListing = (listing, user) => {
   return canManageOwnedResource(listing.seller_id, user, ADMIN_ROLES);
 };
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(process.cwd(), 'uploads')),
-  filename: (req, file, cb) => { const ext = path.extname(file.originalname) || '.png'; cb(null, `listing-${uuidv4()}${ext}`); },
+const uploadsDir = path.join(process.cwd(), 'uploads');
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Nur Bilddateien.'));
+  },
 });
-const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: (req, file, cb) => { if (file.mimetype.startsWith('image/')) cb(null, true); else cb(new Error('Nur Bilddateien.')); } });
+
+async function saveUploadedImage(buffer) {
+  const saved = await saveListingImage(buffer, uploadsDir);
+  return saved.imagePath;
+}
 
 async function saveBase64Image(b64) {
-  const matches = b64.match(/^data:image\/(\w+);base64,(.+)$/);
+  const matches = b64.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/);
   if (!matches) return null;
-  const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
-  const filename = `listing-${uuidv4()}.${ext}`;
-  const { writeFile } = await import('fs/promises');
-  await writeFile(path.join(process.cwd(), 'uploads', filename), Buffer.from(matches[2], 'base64'));
-  return `/uploads/${filename}`;
+  const buffer = Buffer.from(matches[1], 'base64');
+  if (buffer.length > 10 * 1024 * 1024) return null;
+  return saveUploadedImage(buffer);
 }
 
 /** GET /api/listings/recent?ids=1,2,3 — Public: lightweight recently viewed cards */
@@ -229,7 +236,7 @@ router.post('/', requireAuth, requireRole('mitarbeiter'), upload.single('image')
   if (!brand || !model) return res.status(400).json({ error: 'Marke und Modell erforderlich.' });
 
   let imagePath = null;
-  if (req.file) imagePath = `/uploads/${req.file.filename}`;
+  if (req.file) imagePath = await saveUploadedImage(req.file.buffer).catch(() => null);
   else if (image_base64) imagePath = await saveBase64Image(image_base64).catch(() => null);
 
   try {
@@ -306,7 +313,7 @@ router.put('/:id', requireAuth, requireRole('mitarbeiter'), upload.single('image
   const { brand, model, plate, category, status, custom_price, discount_pct, notes, image_base64 } = req.body;
 
   let imagePath;
-  if (req.file) imagePath = `/uploads/${req.file.filename}`;
+  if (req.file) imagePath = await saveUploadedImage(req.file.buffer).catch(() => null);
   else if (image_base64) imagePath = await saveBase64Image(image_base64).catch(() => null);
 
   const sets = [];
@@ -466,12 +473,7 @@ router.delete('/:id/images/:imageId', requireAuth, requireRole('mitarbeiter'), a
     const image = await pool.query('SELECT * FROM listing_images WHERE id = ? AND listing_id = ?', [req.params.imageId, req.params.id]);
     if (!image.rows[0]) return res.status(404).json({ error: 'Bild nicht gefunden.' });
 
-    // Delete physical file
-    try {
-      const { unlink } = await import('fs/promises');
-      const filePath = path.join(process.cwd(), image.rows[0].image_path);
-      await unlink(filePath).catch(() => {});
-    } catch {}
+    await deleteListingImageFiles(image.rows[0].image_path, uploadsDir);
 
     await pool.query('DELETE FROM listing_images WHERE id = ?', [req.params.imageId]);
 

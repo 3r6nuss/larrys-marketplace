@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { getThumbnailImagePath } from '@/lib/utils';
 import {
  Ticket, MessageSquare, Send, ArrowLeft, Car, Clock,
  CheckCircle2, XCircle, Loader2, AlertTriangle, User, Flame,
@@ -554,7 +555,7 @@ export default function TicketsPage({ isModal }) {
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
                   {ticketDetail.image_path && (
-                    <img loading='lazy' src={ticketDetail.image_path} alt="" className="h-10 w-16 rounded-lg object-cover border border-border/40 bg-muted shrink-0" />
+                    <img loading='lazy' src={getThumbnailImagePath(ticketDetail.image_path)} alt="" className="h-10 w-16 rounded-lg object-cover border border-border/40 bg-muted shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm truncate text-foreground/95">

@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -14,7 +15,147 @@ import {
 import { Car, Search, MessageSquare, Filter, LogIn, Images, ArrowUpDown, RotateCcw, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
+import { useCatalogSparMode } from '@/hooks/useCatalogSparMode';
+import { getThumbnailImagePath } from '@/lib/utils';
 import VehicleDetailModal from '@/components/VehicleDetailModal';
+
+const STATUS_BADGE = {
+ available: { label: 'Verfügbar', variant: 'default' },
+ reserved: { label: 'Reserviert', variant: 'secondary' },
+ sold: { label: 'Verkauft', variant: 'outline' },
+};
+
+function getColumnCount() {
+ if (typeof window === 'undefined') return 1;
+ if (window.innerWidth >= 1280) return 4;
+ if (window.innerWidth >= 1024) return 3;
+ if (window.innerWidth >= 768) return 2;
+ return 1;
+}
+
+function ListingCard({ listing, onOpen, onContact }) {
+ const status = STATUS_BADGE[listing.status] || STATUS_BADGE.available;
+ const displayImage = listing.cover_image || listing.image_path;
+ const hasMultipleImages = (listing.image_count || 0) > 1;
+
+ return (
+  <Card
+   onClick={() => onOpen(listing)}
+   className="h-full overflow-hidden group hover:border-primary/40 transition-all duration-150 cursor-pointer hover:shadow-lg hover:shadow-primary/5"
+  >
+   <div className="relative h-48 bg-muted overflow-hidden">
+	{displayImage ? (
+	 <img
+	  loading="lazy"
+	  decoding="async"
+	  src={getThumbnailImagePath(displayImage)}
+	  alt={`${listing.brand} ${listing.model}`}
+	  className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-200"
+	 />
+	) : (
+	 <div className="h-full w-full flex items-center justify-center">
+	  <Car className="h-16 w-16 text-muted-foreground/30" />
+	 </div>
+	)}
+	<Badge variant={status.variant} className="absolute top-3 right-3">
+	 {status.label}
+	</Badge>
+	{hasMultipleImages && (
+	 <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-black/50 px-2 py-0.5 rounded-full">
+	  <Images className="h-3 w-3 text-white/80" />
+	  <span className="text-[10px] text-white/80 font-medium">{listing.image_count}</span>
+	 </div>
+	)}
+   </div>
+   <CardContent className="p-4 space-y-3">
+	<div>
+	 <h3 className="font-semibold text-lg leading-tight group-hover:text-primary transition-colors">
+	  {listing.brand} {listing.model}
+	 </h3>
+	 {listing.plate && <p className="text-sm text-muted-foreground font-mono mt-0.5">{listing.plate}</p>}
+	</div>
+	<div className="flex items-center gap-2 flex-wrap">
+	 {listing.category && <Badge variant="outline" className="text-xs">{listing.category}</Badge>}
+	 {listing.discount_pct > 0 && (
+	  <Badge className="text-xs bg-success/20 text-success border-success/30">-{listing.discount_pct}%</Badge>
+	 )}
+	</div>
+	{listing.status === 'available' && (
+	 <Button onClick={(event) => onContact(event, listing)} className="w-full gap-2 cursor-pointer" variant="default">
+	  <MessageSquare className="h-4 w-4" /> Verkäufer kontaktieren
+	 </Button>
+	)}
+   </CardContent>
+  </Card>
+ );
+}
+
+function ListingGrid({ listings, virtualized, onOpen, onContact }) {
+ const gridRef = useRef(null);
+ const [columns, setColumns] = useState(getColumnCount);
+ const [scrollElement, setScrollElement] = useState(null);
+ const [scrollMargin, setScrollMargin] = useState(0);
+ const rowCount = Math.ceil(listings.length / columns);
+ const virtualizer = useVirtualizer({
+  count: virtualized ? rowCount : 0,
+	getScrollElement: () => scrollElement,
+  estimateSize: () => 350,
+  overscan: 2,
+  scrollMargin,
+ });
+
+ useEffect(() => {
+  const updateLayout = () => {
+	 const gridElement = gridRef.current;
+	 const nextScrollElement = gridElement?.closest('[data-slot="dialog-content"]') ?? null;
+   setColumns(getColumnCount());
+	 setScrollElement(nextScrollElement);
+	 if (gridElement && nextScrollElement) {
+		const gridRect = gridElement.getBoundingClientRect();
+		const scrollRect = nextScrollElement.getBoundingClientRect();
+		setScrollMargin(gridRect.top - scrollRect.top + nextScrollElement.scrollTop);
+	 }
+  };
+  updateLayout();
+  window.addEventListener('resize', updateLayout);
+  return () => window.removeEventListener('resize', updateLayout);
+ }, []);
+
+ useEffect(() => {
+  if (virtualized && scrollElement) virtualizer.measure();
+ }, [columns, rowCount, scrollElement, virtualized, virtualizer]);
+
+ if (!virtualized) {
+  return (
+   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+	{listings.map(listing => (
+	 <ListingCard key={listing.id} listing={listing} onOpen={onOpen} onContact={onContact} />
+	))}
+   </div>
+  );
+ }
+
+ return (
+  <div ref={gridRef} className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+   {virtualizer.getVirtualItems().map(virtualRow => {
+	const rowListings = listings.slice(virtualRow.index * columns, (virtualRow.index + 1) * columns);
+	return (
+	 <div
+	  key={virtualRow.key}
+	  data-index={virtualRow.index}
+	  ref={virtualizer.measureElement}
+	  className="absolute left-0 top-0 grid w-full grid-cols-1 gap-4 pb-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+	  style={{ transform: `translateY(${virtualRow.start - scrollMargin}px)` }}
+	 >
+	  {rowListings.map(listing => (
+	   <ListingCard key={listing.id} listing={listing} onOpen={onOpen} onContact={onContact} />
+	  ))}
+	 </div>
+	);
+   })}
+  </div>
+ );
+}
 
 /**
  * Public catalog page. Shows all available vehicles without prices.
@@ -35,6 +176,7 @@ export default function CatalogPage() {
  const [filterOptions, setFilterOptions] = useState({ categories: [], min_price: 0, max_price: 0 });
  const [loginPrompt, setLoginPrompt] = useState(null);
  const [detailId, setDetailId] = useState(null); // Pokémon-card modal
+ const virtualScrolling = useCatalogSparMode();
 
  useEffect(() => {
  const timeout = setTimeout(() => {
@@ -124,12 +266,6 @@ export default function CatalogPage() {
  setPriceFilter({ min: '', max: '' });
  };
 
- const STATUS_BADGE = {
- available: { label: 'Verfügbar', variant: 'default' },
- reserved: { label: 'Reserviert', variant: 'secondary' },
- sold: { label: 'Verkauft', variant: 'outline' },
- };
-
  return (
  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-200">
  <div className="flex flex-col gap-2 pb-2 border-b border-border/40">
@@ -140,8 +276,8 @@ export default function CatalogPage() {
  </div>
 
  {/* Filters */}
- <div className="flex flex-wrap gap-3 items-center">
- <div className="relative flex-1 min-w-[200px] max-w-sm">
+ <div className="flex min-w-0 flex-wrap gap-3 items-center">
+ <div className="relative w-full min-w-0 sm:flex-1 sm:min-w-[200px] sm:max-w-sm">
  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
  <Input
  placeholder="Marke, Modell oder Kennzeichen suchen..."
@@ -151,7 +287,7 @@ export default function CatalogPage() {
  />
  </div>
  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
- <SelectTrigger className="w-[180px]">
+ <SelectTrigger className="w-full sm:w-[180px]">
  <Filter className="h-4 w-4 mr-2" />
  <SelectValue placeholder="Kategorie" />
  </SelectTrigger>
@@ -163,7 +299,7 @@ export default function CatalogPage() {
  </SelectContent>
  </Select>
  <Select value={sortOrder} onValueChange={setSortOrder}>
- <SelectTrigger className="w-[190px]">
+ <SelectTrigger className="w-full sm:w-[190px]">
  <ArrowUpDown className="h-4 w-4 mr-2" />
  <SelectValue placeholder="Sortieren" />
  </SelectTrigger>
@@ -176,8 +312,8 @@ export default function CatalogPage() {
  <SelectItem value="price_desc">Preis absteigend</SelectItem>
  </SelectContent>
  </Select>
- <div className="flex items-center gap-2">
- <div className="relative w-[130px]">
+ <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:flex sm:w-auto">
+ <div className="relative min-w-0 sm:w-[130px]">
  <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
  <Input
  type="number"
@@ -190,7 +326,7 @@ export default function CatalogPage() {
  />
  </div>
  <span className="text-muted-foreground text-xs">bis</span>
- <div className="relative w-[130px]">
+ <div className="relative min-w-0 sm:w-[130px]">
  <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
  <Input
  type="number"
@@ -234,83 +370,12 @@ export default function CatalogPage() {
  <p className="text-muted-foreground">Versuche andere Suchkriterien.</p>
  </Card>
  ) : (
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
- {filteredListings.map(listing => {
- const status = STATUS_BADGE[listing.status] || STATUS_BADGE.available;
- const displayImage = listing.cover_image || listing.image_path;
- const hasMultipleImages = (listing.image_count || 0) > 1;
-
- return (
- <Card
- key={listing.id}
- onClick={() => handleCardClick(listing)}
- className="overflow-hidden group hover:border-primary/40 transition-all duration-150 cursor-pointer hover:shadow-lg hover:shadow-primary/5"
- >
- <div className="relative h-48 bg-muted overflow-hidden">
- {displayImage ? (
- <img
- loading="lazy"
- decoding="async"
- src={displayImage}
- alt={`${listing.brand} ${listing.model}`}
- className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-200"
+ <ListingGrid
+  listings={filteredListings}
+  virtualized={virtualScrolling}
+  onOpen={handleCardClick}
+  onContact={handleContact}
  />
- ) : (
- <div className="h-full w-full flex items-center justify-center">
- <Car className="h-16 w-16 text-muted-foreground/30" />
- </div>
- )}
- <Badge
- variant={status.variant}
- className="absolute top-3 right-3"
- >
- {status.label}
- </Badge>
-
- {/* Multi-image dot indicator */}
- {hasMultipleImages && (
- <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-black/50 px-2 py-0.5 rounded-full">
- <Images className="h-3 w-3 text-white/80" />
- <span className="text-[10px] text-white/80 font-medium">{listing.image_count}</span>
- </div>
- )}
- </div>
- <CardContent className="p-4 space-y-3">
- <div>
- <h3 className="font-semibold text-lg leading-tight group-hover:text-primary transition-colors">
- {listing.brand} {listing.model}
- </h3>
- {listing.plate && (
- <p className="text-sm text-muted-foreground font-mono mt-0.5">
- {listing.plate}
- </p>
- )}
- </div>
- <div className="flex items-center gap-2 flex-wrap">
- {listing.category && (
- <Badge variant="outline" className="text-xs">{listing.category}</Badge>
- )}
- {listing.discount_pct > 0 && (
- <Badge className="text-xs bg-success/20 text-success border-success/30">
- -{listing.discount_pct}%
- </Badge>
- )}
- </div>
- {listing.status === 'available' && (
- <Button
- onClick={(e) => handleContact(e, listing)}
- className="w-full gap-2 cursor-pointer"
- variant="default"
- >
- <MessageSquare className="h-4 w-4" />
- Verkäufer kontaktieren
- </Button>
- )}
- </CardContent>
- </Card>
- );
- })}
- </div>
  )}
 
  {/* ── Pokémon-Card Detail Modal ── */}

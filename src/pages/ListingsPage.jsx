@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { Plus, MoreHorizontal, Pencil, Trash2, Eye, Car, ImagePlus, X, ClipboardPaste, Star, GripVertical, Crown, DollarSign } from 'lucide-react';
+import { getThumbnailImagePath } from '@/lib/utils';
 
 const CATEGORIES = [
  'Sport', 'Super', 'Sports Classic', 'SUV', 'Muscle', 'Limousine',
@@ -503,7 +504,7 @@ export default function ListingsPage() {
  <TableRow key={l.id} className="group">
  <TableCell>
  {l.image_path ? (
- <img loading='lazy' src={l.image_path} alt="" className="h-10 w-14 rounded object-cover" />
+ <img loading='lazy' src={getThumbnailImagePath(l.image_path)} alt="" className="h-10 w-14 rounded object-cover" />
  ) : (
  <div className="h-10 w-14 rounded bg-muted flex items-center justify-center">
  <Car className="h-4 w-4 text-muted-foreground" />
@@ -645,7 +646,7 @@ export default function ListingsPage() {
  img.isCover ? 'border-orange-400 ring-1 ring-orange-400/30' : 'border-border hover:border-primary/30'
  } ${dragIdx === idx ? 'opacity-50 scale-95' : ''}`}
  >
- <img loading='lazy' src={img.preview} alt="" className="h-20 w-full object-cover" />
+ <img loading='lazy' decoding="async" src={img.isExisting ? getThumbnailImagePath(img.preview) : img.preview} alt="" className="h-20 w-full object-cover" />
 
  {/* Cover badge */}
  {img.isCover && (

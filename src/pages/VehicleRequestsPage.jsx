@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { getThumbnailImagePath } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -395,7 +396,7 @@ export default function VehicleRequestsPage({ isModal }) {
             className="h-16 w-20 rounded-lg overflow-hidden bg-muted/30 shrink-0 cursor-pointer border border-success/20 hover:border-success/50 transition-colors"
            >
             {(r.listing_cover || r.listing_image) ? (
-             <img loading='lazy' src={r.listing_cover || r.listing_image} alt="" className="h-full w-full object-cover" />
+             <img loading='lazy' decoding="async" src={getThumbnailImagePath(r.listing_cover || r.listing_image)} alt="" className="h-full w-full object-cover" />
             ) : (
              <div className="h-full w-full flex items-center justify-center">
               <Car className="h-6 w-6 text-success/30" />

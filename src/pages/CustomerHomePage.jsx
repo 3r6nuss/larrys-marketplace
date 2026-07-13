@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import VehicleDetailModal from '@/components/VehicleDetailModal';
 import PopupShell from '@/components/PopupShell';
+import { getThumbnailImagePath } from '@/lib/utils';
 
 export default function CustomerHomePage() {
  const { user, login } = useAuth();
@@ -199,7 +200,7 @@ export default function CustomerHomePage() {
  const listing = newest[newestIndex % newest.length];
  return (
  <div className="absolute inset-0 animate-in fade-in duration-200" key={listing.id}>
- {(listing.cover_image || listing.image_path) ? <img loading="eager" decoding="async" fetchPriority="high" src={listing.cover_image || listing.image_path} alt="" className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-150" /> : <div className="h-full w-full bg-gradient-to-br from-muted/50 to-background flex items-center justify-center"><div className="p-4 rounded-full bg-background/50 shadow-inner"><Car className="h-10 w-10 text-muted-foreground/40 group-hover:text-primary/60 group-hover:scale-110 transition-all duration-200" /></div></div>}
+ {(listing.cover_image || listing.image_path) ? <img loading="eager" decoding="async" fetchPriority="high" src={getThumbnailImagePath(listing.cover_image || listing.image_path)} alt="" className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-150" /> : <div className="h-full w-full bg-gradient-to-br from-muted/50 to-background flex items-center justify-center"><div className="p-4 rounded-full bg-background/50 shadow-inner"><Car className="h-10 w-10 text-muted-foreground/40 group-hover:text-primary/60 group-hover:scale-110 transition-all duration-200" /></div></div>}
  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-background/95 via-background/80 to-transparent p-4 pt-16">
  <p className="font-extrabold text-lg truncate leading-tight drop-shadow-md text-foreground">{listing.brand} {listing.model}</p>
  {listing.category && <Badge className="bg-primary/20 text-primary hover:bg-primary/30 border-primary/20 text-[10px] mt-1.5 shadow-sm">{listing.category}</Badge>}
@@ -221,7 +222,7 @@ export default function CustomerHomePage() {
  const listing = featured[featuredIndex % featured.length];
  return (
  <div className="absolute inset-0 animate-in fade-in duration-200" key={listing.id}>
- {(listing.cover_image || listing.image_path) ? <img loading="eager" decoding="async" src={listing.cover_image || listing.image_path} alt="" className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-150" /> : <div className="h-full w-full bg-gradient-to-br from-orange-950/20 to-background flex items-center justify-center"><div className="p-4 rounded-full bg-background/50 shadow-inner"><Car className="h-10 w-10 text-orange-500/20 group-hover:text-orange-500/60 group-hover:scale-110 transition-all duration-200" /></div></div>}
+ {(listing.cover_image || listing.image_path) ? <img loading="eager" decoding="async" src={getThumbnailImagePath(listing.cover_image || listing.image_path)} alt="" className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-150" /> : <div className="h-full w-full bg-gradient-to-br from-orange-950/20 to-background flex items-center justify-center"><div className="p-4 rounded-full bg-background/50 shadow-inner"><Car className="h-10 w-10 text-orange-500/20 group-hover:text-orange-500/60 group-hover:scale-110 transition-all duration-200" /></div></div>}
  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-background/95 via-background/80 to-transparent p-4 pt-16">
  <p className="font-extrabold text-lg truncate leading-tight drop-shadow-md text-orange-50">{listing.brand} {listing.model}</p>
  {listing.category && <Badge className="bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border-orange-500/30 text-[10px] mt-1.5 shadow-sm">{listing.category}</Badge>}
@@ -255,7 +256,7 @@ export default function CustomerHomePage() {
  {recentListings.map(l => (
  <button key={l.id} onClick={() => setDetailId(l.id)} className="flex-shrink-0 w-44 group/item text-left cursor-pointer rounded-xl overflow-hidden border border-border/50 bg-background hover:bg-muted/30 hover:border-chart-5/40 hover:shadow-md transition-all duration-150">
  <div className="h-24 bg-gradient-to-br from-muted/50 to-muted/20 relative overflow-hidden flex items-center justify-center">
- {(l.cover_image || l.image_path) ? <img loading='lazy' src={l.cover_image || l.image_path} alt="" className="h-full w-full object-contain group-hover/item:scale-105 transition-transform duration-200" /> : <Car className="h-8 w-8 text-muted-foreground/20 group-hover/item:text-chart-5/40 group-hover/item:scale-110 transition-all duration-200" />}
+ {(l.cover_image || l.image_path) ? <img loading='lazy' src={getThumbnailImagePath(l.cover_image || l.image_path)} alt="" className="h-full w-full object-contain group-hover/item:scale-105 transition-transform duration-200" /> : <Car className="h-8 w-8 text-muted-foreground/20 group-hover/item:text-chart-5/40 group-hover/item:scale-110 transition-all duration-200" />}
  </div>
  <div className="p-3">
  <p className="text-sm font-bold truncate group-hover/item:text-chart-5 transition-colors">{l.brand} {l.model}</p>

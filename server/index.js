@@ -90,7 +90,7 @@ async function setupAndStart() {
     // Serve uploaded images
     app.use('/uploads', express.static(uploadsDir, {
       immutable: true,
-      maxAge: '30d',
+      maxAge: '1y',
     }));
 
     // Routes

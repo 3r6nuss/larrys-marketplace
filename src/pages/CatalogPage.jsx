@@ -254,9 +254,12 @@ export default function CatalogPage() {
  });
  }, [listings, searchQuery]);
 
- const availableModels = brandFilter === 'all'
-  ? filterOptions.models
-  : filterOptions.models.filter(option => option.brand === brandFilter);
+ const availableModels = [...new Map(
+	filterOptions.models
+	 .filter(option => brandFilter === 'all' || option.brand === brandFilter)
+	 .map(option => [option.model, option])
+ ).values()];
+ const selectedSeller = filterOptions.sellers.find(seller => String(seller.id) === sellerFilter);
 
  const hasActiveFilters = searchQuery || categoryFilter !== 'all' || brandFilter !== 'all' || modelFilter !== 'all' || sellerFilter !== 'all' || sortOrder !== 'newest';
 
@@ -292,7 +295,7 @@ export default function CatalogPage() {
  <Select value={sellerFilter} onValueChange={setSellerFilter}>
  <SelectTrigger className="w-full sm:w-[180px]">
  <Store className="h-4 w-4 mr-2" />
- <SelectValue placeholder="Verkäufer" />
+ <span className="flex-1 truncate text-left">{selectedSeller?.name || 'Alle Verkäufer'}</span>
  </SelectTrigger>
  <SelectContent>
  <SelectItem value="all">Alle Verkäufer</SelectItem>
@@ -304,7 +307,7 @@ export default function CatalogPage() {
  <Select value={brandFilter} onValueChange={(value) => { setBrandFilter(value); setModelFilter('all'); }}>
  <SelectTrigger className="w-full sm:w-[170px]">
  <Tag className="h-4 w-4 mr-2" />
- <SelectValue placeholder="Marke" />
+ <span className="flex-1 truncate text-left">{brandFilter === 'all' ? 'Alle Marken' : brandFilter}</span>
  </SelectTrigger>
  <SelectContent>
  <SelectItem value="all">Alle Marken</SelectItem>
@@ -316,7 +319,7 @@ export default function CatalogPage() {
  <Select value={modelFilter} onValueChange={setModelFilter}>
  <SelectTrigger className="w-full sm:w-[180px]">
  <CarFront className="h-4 w-4 mr-2" />
- <SelectValue placeholder="Modell" />
+ <span className="flex-1 truncate text-left">{modelFilter === 'all' ? 'Alle Modelle' : modelFilter}</span>
  </SelectTrigger>
  <SelectContent>
  <SelectItem value="all">Alle Modelle</SelectItem>
@@ -330,7 +333,7 @@ export default function CatalogPage() {
  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
  <SelectTrigger className="w-full sm:w-[180px]">
  <Filter className="h-4 w-4 mr-2" />
- <SelectValue placeholder="Kategorie" />
+ <span className="flex-1 truncate text-left">{categoryFilter === 'all' ? 'Alle Kategorien' : categoryFilter}</span>
  </SelectTrigger>
  <SelectContent>
  <SelectItem value="all">Alle Kategorien</SelectItem>
@@ -342,7 +345,12 @@ export default function CatalogPage() {
  <Select value={sortOrder} onValueChange={setSortOrder}>
  <SelectTrigger className="w-full sm:w-[190px]">
  <ArrowUpDown className="h-4 w-4 mr-2" />
- <SelectValue placeholder="Sortieren" />
+ <span className="flex-1 truncate text-left">{{
+  newest: 'Neueste zuerst',
+  oldest: 'Älteste zuerst',
+  name_asc: 'Name A–Z',
+  name_desc: 'Name Z–A',
+ }[sortOrder]}</span>
  </SelectTrigger>
  <SelectContent>
  <SelectItem value="newest">Neueste zuerst</SelectItem>

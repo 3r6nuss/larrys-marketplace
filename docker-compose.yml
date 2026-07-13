@@ -34,6 +34,10 @@ services:
       DB_NAME: larrys
       DB_USER: larrys
       DB_PASSWORD: larrys_secret
+      DB_CONNECT_TIMEOUT_MS: 5000
+      DB_QUERY_TIMEOUT_MS: 15000
+      DB_STATEMENT_TIMEOUT_MS: 15000
+      DB_POOL_MAX: 20
       PORT: 3002
       CORS_ORIGIN: "*"
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8081}
@@ -62,6 +66,12 @@ services:
     ports:
       - "8081:80"
     restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   pgdata:

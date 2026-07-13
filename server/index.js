@@ -47,6 +47,24 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'larrys',
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.floor(process.uptime()),
+  });
+});
+
+app.get('/api/ready', async (req, res) => {
+  try {
+    await db.query('SELECT 1 AS healthy');
+    res.json({ status: 'ready', database: db.pool ? 'postgresql' : 'sqlite' });
+  } catch (error) {
+    res.status(503).json({ status: 'not_ready', database: 'down', error: error.message });
+  }
+});
+
 // Build session store — PostgreSQL or SQLite
 async function buildSessionStore() {
   if (db.pool) {
@@ -116,30 +134,6 @@ async function setupAndStart() {
     app.use('/api/stats', statsRoutes);
     app.use('/api/reviews', reviewsRoutes);
     app.use('/api/requests', requestsRoutes);
-
-    // Health check
-    app.get('/api/health', async (req, res) => {
-      const health = {
-        status: 'ok',
-        service: 'larrys',
-        timestamp: new Date().toISOString(),
-        uptimeSeconds: Math.floor(process.uptime()),
-        checks: {
-          api: { status: 'up' },
-          database: { status: 'up', engine: db.pool ? 'postgresql' : 'sqlite' },
-        },
-        memory: process.memoryUsage(),
-      };
-
-      try {
-        await db.query('SELECT 1 AS healthy');
-        res.json(health);
-      } catch (error) {
-        health.status = 'down';
-        health.checks.database = { status: 'down', message: error.message };
-        res.status(503).json(health);
-      }
-    });
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚗 Larry's API running on http://localhost:${PORT}`);

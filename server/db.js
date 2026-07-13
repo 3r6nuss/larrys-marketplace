@@ -20,6 +20,15 @@ if (DB_HOST) {
     database: process.env.DB_NAME || 'larrys',
     user: process.env.DB_USER || 'larrys',
     password: process.env.DB_PASSWORD || 'larrys_secret',
+    connectionTimeoutMillis: Number.parseInt(process.env.DB_CONNECT_TIMEOUT_MS || '5000', 10),
+    query_timeout: Number.parseInt(process.env.DB_QUERY_TIMEOUT_MS || '15000', 10),
+    statement_timeout: Number.parseInt(process.env.DB_STATEMENT_TIMEOUT_MS || '15000', 10),
+    idleTimeoutMillis: 30000,
+    max: Number.parseInt(process.env.DB_POOL_MAX || '20', 10),
+  });
+
+  pool.on('error', (error) => {
+    console.error('Unexpected PostgreSQL pool error:', error);
   });
 
   isPostgres = true;

@@ -12,7 +12,7 @@ import {
  Dialog, DialogContent, DialogHeader, DialogTitle,
  DialogDescription, DialogFooter
 } from '@/components/ui/dialog';
-import { Car, Search, MessageSquare, Filter, LogIn, Images, ArrowUpDown, RotateCcw, DollarSign } from 'lucide-react';
+import { Car, Search, MessageSquare, Filter, LogIn, Images, ArrowUpDown, RotateCcw, Store, Tag, CarFront } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { useCatalogSparMode } from '@/hooks/useCatalogSparMode';
@@ -170,10 +170,11 @@ export default function CatalogPage() {
  const [searchQuery, setSearchQuery] = useState('');
  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
  const [categoryFilter, setCategoryFilter] = useState('all');
+ const [brandFilter, setBrandFilter] = useState('all');
+ const [modelFilter, setModelFilter] = useState('all');
+ const [sellerFilter, setSellerFilter] = useState('all');
  const [sortOrder, setSortOrder] = useState('newest');
- const [priceFilter, setPriceFilter] = useState({ min: '', max: '' });
- const [debouncedPriceFilter, setDebouncedPriceFilter] = useState({ min: '', max: '' });
- const [filterOptions, setFilterOptions] = useState({ categories: [], min_price: 0, max_price: 0 });
+ const [filterOptions, setFilterOptions] = useState({ categories: [], brands: [], models: [], sellers: [] });
  const [loginPrompt, setLoginPrompt] = useState(null);
  const [detailId, setDetailId] = useState(null); // Pokémon-card modal
  const virtualScrolling = useCatalogSparMode();
@@ -187,11 +188,6 @@ export default function CatalogPage() {
  }, [searchQuery]);
 
  useEffect(() => {
- const timeout = setTimeout(() => setDebouncedPriceFilter(priceFilter), 400);
- return () => clearTimeout(timeout);
- }, [priceFilter]);
-
- useEffect(() => {
  fetch('/api/listings/filters')
  .then(res => res.ok ? res.json() : null)
  .then(data => { if (data) setFilterOptions(data); })
@@ -203,10 +199,11 @@ export default function CatalogPage() {
  const params = new URLSearchParams();
  params.set('status', 'available');
  if (categoryFilter && categoryFilter !== 'all') params.set('category', categoryFilter);
+ if (brandFilter && brandFilter !== 'all') params.set('brand', brandFilter);
+ if (modelFilter && modelFilter !== 'all') params.set('model', modelFilter);
+ if (sellerFilter && sellerFilter !== 'all') params.set('seller_id', sellerFilter);
  if (debouncedSearchQuery) params.set('q', debouncedSearchQuery);
  params.set('sort', sortOrder);
- if (debouncedPriceFilter.min !== '') params.set('min_price', debouncedPriceFilter.min);
- if (debouncedPriceFilter.max !== '') params.set('max_price', debouncedPriceFilter.max);
 
  const res = await fetch(`/api/listings?${params}`, { credentials: 'include' });
  if (res.ok) {
@@ -218,7 +215,7 @@ export default function CatalogPage() {
  } finally {
  setLoading(false);
  }
- }, [categoryFilter, debouncedSearchQuery, sortOrder, debouncedPriceFilter]);
+ }, [brandFilter, categoryFilter, debouncedSearchQuery, modelFilter, sellerFilter, sortOrder]);
 
  useEffect(() => { fetchListings(); }, [fetchListings]);
 
@@ -257,13 +254,19 @@ export default function CatalogPage() {
  });
  }, [listings, searchQuery]);
 
- const hasActiveFilters = searchQuery || categoryFilter !== 'all' || sortOrder !== 'newest' || priceFilter.min || priceFilter.max;
+ const availableModels = brandFilter === 'all'
+  ? filterOptions.models
+  : filterOptions.models.filter(option => option.brand === brandFilter);
+
+ const hasActiveFilters = searchQuery || categoryFilter !== 'all' || brandFilter !== 'all' || modelFilter !== 'all' || sellerFilter !== 'all' || sortOrder !== 'newest';
 
  const resetFilters = () => {
  setSearchQuery('');
  setCategoryFilter('all');
+ setBrandFilter('all');
+ setModelFilter('all');
+ setSellerFilter('all');
  setSortOrder('newest');
- setPriceFilter({ min: '', max: '' });
  };
 
  return (
@@ -286,6 +289,44 @@ export default function CatalogPage() {
  className="pl-10"
  />
  </div>
+ <Select value={sellerFilter} onValueChange={setSellerFilter}>
+ <SelectTrigger className="w-full sm:w-[180px]">
+ <Store className="h-4 w-4 mr-2" />
+ <SelectValue placeholder="Verkäufer" />
+ </SelectTrigger>
+ <SelectContent>
+ <SelectItem value="all">Alle Verkäufer</SelectItem>
+ {filterOptions.sellers.map(seller => (
+ <SelectItem key={seller.id} value={String(seller.id)}>{seller.name}</SelectItem>
+ ))}
+ </SelectContent>
+ </Select>
+ <Select value={brandFilter} onValueChange={(value) => { setBrandFilter(value); setModelFilter('all'); }}>
+ <SelectTrigger className="w-full sm:w-[170px]">
+ <Tag className="h-4 w-4 mr-2" />
+ <SelectValue placeholder="Marke" />
+ </SelectTrigger>
+ <SelectContent>
+ <SelectItem value="all">Alle Marken</SelectItem>
+ {filterOptions.brands.map(brand => (
+ <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+ ))}
+ </SelectContent>
+ </Select>
+ <Select value={modelFilter} onValueChange={setModelFilter}>
+ <SelectTrigger className="w-full sm:w-[180px]">
+ <CarFront className="h-4 w-4 mr-2" />
+ <SelectValue placeholder="Modell" />
+ </SelectTrigger>
+ <SelectContent>
+ <SelectItem value="all">Alle Modelle</SelectItem>
+ {availableModels.map(option => (
+ <SelectItem key={`${option.brand}-${option.model}`} value={option.model}>
+ {brandFilter === 'all' ? `${option.brand} ${option.model}` : option.model}
+ </SelectItem>
+ ))}
+ </SelectContent>
+ </Select>
  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
  <SelectTrigger className="w-full sm:w-[180px]">
  <Filter className="h-4 w-4 mr-2" />
@@ -308,37 +349,8 @@ export default function CatalogPage() {
  <SelectItem value="oldest">Älteste zuerst</SelectItem>
  <SelectItem value="name_asc">Name A–Z</SelectItem>
  <SelectItem value="name_desc">Name Z–A</SelectItem>
- <SelectItem value="price_asc">Preis aufsteigend</SelectItem>
- <SelectItem value="price_desc">Preis absteigend</SelectItem>
  </SelectContent>
  </Select>
- <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:flex sm:w-auto">
- <div className="relative min-w-0 sm:w-[130px]">
- <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
- <Input
- type="number"
- min="0"
- value={priceFilter.min}
- onChange={event => setPriceFilter(current => ({ ...current, min: event.target.value }))}
- placeholder={filterOptions.min_price ? `Ab ${filterOptions.min_price}` : 'Min. Preis'}
- className="pl-8"
- aria-label="Mindestpreis"
- />
- </div>
- <span className="text-muted-foreground text-xs">bis</span>
- <div className="relative min-w-0 sm:w-[130px]">
- <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
- <Input
- type="number"
- min="0"
- value={priceFilter.max}
- onChange={event => setPriceFilter(current => ({ ...current, max: event.target.value }))}
- placeholder={filterOptions.max_price ? `Bis ${filterOptions.max_price}` : 'Max. Preis'}
- className="pl-8"
- aria-label="Höchstpreis"
- />
- </div>
- </div>
  {hasActiveFilters && (
  <Button variant="ghost" size="sm" onClick={resetFilters} className="gap-1.5 cursor-pointer text-muted-foreground">
  <RotateCcw className="h-3.5 w-3.5" /> Zurücksetzen

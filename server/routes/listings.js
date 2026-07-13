@@ -110,14 +110,17 @@ router.get('/newest', async (req, res) => {
 /** GET /api/listings/filters — Public catalog filter metadata */
 router.get('/filters', async (req, res) => {
   try {
-    const [categoryResult, priceResult] = await Promise.all([
+    const [categoryResult, brandResult, modelResult, sellerResult] = await Promise.all([
       pool.query(`SELECT DISTINCT category FROM listings WHERE status = 'available' AND category IS NOT NULL AND category != '' ORDER BY category ASC`),
-      pool.query(`SELECT MIN(custom_price) as min_price, MAX(custom_price) as max_price FROM listings WHERE status = 'available' AND custom_price IS NOT NULL`),
+      pool.query(`SELECT DISTINCT brand FROM listings WHERE status = 'available' AND brand IS NOT NULL AND brand != '' ORDER BY brand ASC`),
+      pool.query(`SELECT DISTINCT brand, model FROM listings WHERE status = 'available' AND model IS NOT NULL AND model != '' ORDER BY brand ASC, model ASC`),
+      pool.query(`SELECT DISTINCT u.id, u.display_name FROM listings l JOIN users u ON l.seller_id = u.id WHERE l.status = 'available' ORDER BY u.display_name ASC`),
     ]);
     res.json({
       categories: categoryResult.rows.map(row => row.category),
-      min_price: Number.parseInt(priceResult.rows[0]?.min_price, 10) || 0,
-      max_price: Number.parseInt(priceResult.rows[0]?.max_price, 10) || 0,
+      brands: brandResult.rows.map(row => row.brand),
+      models: modelResult.rows,
+      sellers: sellerResult.rows.map(row => ({ id: row.id, name: row.display_name })),
     });
   } catch (err) {
     console.error('Listing filters error:', err);
@@ -127,27 +130,23 @@ router.get('/filters', async (req, res) => {
 
 /** GET /api/listings */
 router.get('/', optionalAuth, async (req, res) => {
-  const { category, q, seller_id, status = 'available', sort = 'newest', min_price, max_price } = req.query;
+  const { category, brand, model, q, seller_id, status = 'available', sort = 'newest' } = req.query;
   let where = [];
   let params = [];
 
-  const minPrice = Number.parseInt(min_price, 10);
-  const maxPrice = Number.parseInt(max_price, 10);
   const orderBy = {
     newest: 'l.listed_at DESC',
     oldest: 'l.listed_at ASC',
     name_asc: 'l.brand ASC, l.model ASC',
     name_desc: 'l.brand DESC, l.model DESC',
-    price_asc: 'CASE WHEN l.custom_price IS NULL THEN 1 ELSE 0 END, l.custom_price ASC',
-    price_desc: 'CASE WHEN l.custom_price IS NULL THEN 1 ELSE 0 END, l.custom_price DESC',
   }[sort] || 'l.listed_at DESC';
 
   if (category && category !== 'all') { where.push('l.category = ?'); params.push(category); }
+  if (brand && brand !== 'all') { where.push('l.brand = ?'); params.push(brand); }
+  if (model && model !== 'all') { where.push('l.model = ?'); params.push(model); }
   if (status && status !== 'all') { where.push('l.status = ?'); params.push(status); }
   if (seller_id) { where.push('l.seller_id = ?'); params.push(seller_id); }
   if (q) { where.push('(l.brand LIKE ? OR l.model LIKE ? OR l.plate LIKE ?)'); params.push(`%${q}%`, `%${q}%`, `%${q}%`); }
-  if (Number.isFinite(minPrice) && minPrice >= 0) { where.push('l.custom_price >= ?'); params.push(minPrice); }
-  if (Number.isFinite(maxPrice) && maxPrice >= 0) { where.push('l.custom_price <= ?'); params.push(maxPrice); }
 
   const sql = `SELECT l.*, u.display_name as seller_name, u.avatar_url as seller_avatar
                FROM listings l LEFT JOIN users u ON l.seller_id = u.id

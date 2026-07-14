@@ -61,28 +61,6 @@ export function AuthProvider({ children }) {
  window.location.href = '/';
  }, [postWithCredentials]);
 
- const completeOnboarding = useCallback(async () => {
- try {
- const res = await postWithCredentials('/api/users/onboarding-complete');
- if (res.ok) {
- setUser(prev => prev ? { ...prev, has_completed_onboarding: 1 } : null);
- }
- } catch {
- // ignore
- }
- }, [postWithCredentials]);
-
- const resetOnboarding = useCallback(async () => {
- try {
- const res = await postWithCredentials('/api/users/onboarding-reset');
- if (res.ok) {
- setUser(prev => prev ? { ...prev, has_completed_onboarding: 0 } : null);
- }
- } catch {
- // ignore
- }
- }, [postWithCredentials]);
-
  const hasRole = useCallback((minRole) => {
  if (!user) return false;
  return (ROLE_HIERARCHY[user.role] || 0) >= (ROLE_HIERARCHY[minRole] || 999);
@@ -98,8 +76,6 @@ export function AuthProvider({ children }) {
  hasRole,
  isBlocked,
  refetchUser: fetchUser,
- completeOnboarding,
- resetOnboarding,
  }), [
  user,
  loading,
@@ -108,8 +84,6 @@ export function AuthProvider({ children }) {
  hasRole,
  isBlocked,
  fetchUser,
- completeOnboarding,
- resetOnboarding,
  ]);
 
  return (

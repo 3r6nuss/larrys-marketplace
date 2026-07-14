@@ -60,7 +60,7 @@ router.get('/recent', async (req, res) => {
       `SELECT l.id, l.brand, l.model, l.category, l.image_path,
               (SELECT li.image_path FROM listing_images li WHERE li.listing_id = l.id AND li.is_cover = 1 LIMIT 1) as cover_image
        FROM listings l
-       WHERE l.id IN (${ids.map(() => '?').join(',')})`,
+       WHERE l.status = 'available' AND l.id IN (${ids.map(() => '?').join(',')})`,
       ids
     );
     const listingsById = new Map(result.rows.map(listing => [Number(listing.id), listing]));
@@ -130,7 +130,8 @@ router.get('/filters', async (req, res) => {
 
 /** GET /api/listings */
 router.get('/', optionalAuth, async (req, res) => {
-  const { category, brand, model, q, seller_id, status = 'available', sort = 'newest' } = req.query;
+  const { category, brand, model, q, seller_id, status, sort = 'newest' } = req.query;
+  const isMitarbeiter = isStaffUser(req.user);
   let where = [];
   let params = [];
 
@@ -144,7 +145,14 @@ router.get('/', optionalAuth, async (req, res) => {
   if (category && category !== 'all') { where.push('l.category = ?'); params.push(category); }
   if (brand && brand !== 'all') { where.push('l.brand = ?'); params.push(brand); }
   if (model && model !== 'all') { where.push('l.model = ?'); params.push(model); }
-  if (status && status !== 'all') { where.push('l.status = ?'); params.push(status); }
+  if (!isMitarbeiter) {
+    where.push("l.status = 'available'");
+  } else if (status === 'catalog') {
+    where.push("l.status IN ('available', 'reserved')");
+  } else if (status && status !== 'all') {
+    where.push('l.status = ?');
+    params.push(status);
+  }
   if (seller_id) { where.push('l.seller_id = ?'); params.push(seller_id); }
   if (q) { where.push('(l.brand LIKE ? OR l.model LIKE ? OR l.plate LIKE ?)'); params.push(`%${q}%`, `%${q}%`, `%${q}%`); }
 
@@ -154,7 +162,6 @@ router.get('/', optionalAuth, async (req, res) => {
                ORDER BY ${orderBy}`;
   try {
     const result = await pool.query(sql, params);
-    const isMitarbeiter = isStaffUser(req.user);
 
     // Fetch image counts and cover images for all listings
     const listingIds = result.rows.map(r => r.id);
@@ -201,6 +208,10 @@ router.get('/:id', optionalAuth, async (req, res) => {
 
     const listing = result.rows[0];
     const isMitarbeiter = isStaffUser(req.user);
+
+    if (!isMitarbeiter && listing.status !== 'available') {
+      return res.status(404).json({ error: 'Nicht gefunden.' });
+    }
 
     // Fetch all images
     const imagesResult = await pool.query(

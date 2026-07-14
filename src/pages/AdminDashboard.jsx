@@ -12,7 +12,6 @@ import {
   Trophy, History, Crown, Shield, StickyNote, Bot, Send, Loader2
 } from 'lucide-react';
 import PopupShell from '@/components/PopupShell';
-import OnboardingOverlay from '@/components/Onboarding/OnboardingOverlay';
 
 export default function AdminDashboard() {
   const { user, hasRole } = useAuth();
@@ -135,7 +134,6 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Benutzerverwaltung - large */}
         <Tile
-          id="tour-users"
           onClick={() => openModal('users')}
           colSpan="md:col-span-2"
           icon={Users}
@@ -151,7 +149,6 @@ export default function AdminDashboard() {
 
         {/* Statistiken */}
         <Tile
-          id="tour-stats"
           onClick={() => openModal('stats')}
           icon={BarChart3}
           iconColor="text-chart-2"
@@ -275,8 +272,6 @@ export default function AdminDashboard() {
 
       {/* Popup Shell */}
       <PopupShell activeModal={activeModal} onClose={closeModal} />
-      
-      <OnboardingOverlay role="inhaber" />
     </div>
   );
 }

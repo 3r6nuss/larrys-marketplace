@@ -2,7 +2,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, Shield, Calendar, Clock, RotateCcw, Save, UserRoundPen } from 'lucide-react';
+import { LogOut, Shield, Calendar, Clock, Save, UserRoundPen } from 'lucide-react';
 import { format } from 'date-fns';
 import { useState } from 'react';
 import { de } from 'date-fns/locale';
@@ -28,7 +28,7 @@ const ROLE_COLORS = {
 };
 
 export default function ProfilePage() {
- const { user, logout, refetchUser, resetOnboarding } = useAuth();
+ const { user, logout, refetchUser } = useAuth();
  const [fallbackFirstName = '', ...fallbackLastName] = (user?.display_name || '').trim().split(/\s+/);
  const [discordDms, setDiscordDms] = useState(user?.discord_notifications == 1 || user?.discord_notifications === true);
  const [firstName, setFirstName] = useState(user?.first_name || fallbackFirstName);
@@ -206,20 +206,6 @@ export default function ProfilePage() {
  </div>
  </div>
 
- <div className="flex items-center justify-between pt-4 border-t border-border/50">
- <div className="space-y-0.5">
- <p className="font-medium text-sm">Dashboard-Tour neu starten</p>
- <p className="text-xs text-muted-foreground">
- Starte das interaktive Tutorial für dein Dashboard erneut.
- </p>
- </div>
- <Button variant="outline" size="sm" className="gap-2" onClick={async () => {
-   await resetOnboarding();
-   toast.success("Tutorial zurückgesetzt! Lade die Seite neu, oder gehe zum Dashboard.");
- }}>
-   <RotateCcw className="h-4 w-4" /> Tour neustarten
- </Button>
- </div>
  </CardContent>
  </Card>
 

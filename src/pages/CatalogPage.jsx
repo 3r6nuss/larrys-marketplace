@@ -33,15 +33,20 @@ function getColumnCount() {
  return 1;
 }
 
-function ListingCard({ listing, onOpen, onContact }) {
+function ListingCard({ listing, isStaff, onOpen, onContact, onRelease }) {
  const status = STATUS_BADGE[listing.status] || STATUS_BADGE.available;
  const displayImage = listing.cover_image || listing.image_path;
  const hasMultipleImages = (listing.image_count || 0) > 1;
+ const isReserved = listing.status === 'reserved';
 
  return (
   <Card
    onClick={() => onOpen(listing)}
-   className="h-full overflow-hidden group hover:border-primary/40 transition-all duration-150 cursor-pointer hover:shadow-lg hover:shadow-primary/5"
+	 className={`h-full overflow-hidden group transition-all duration-150 cursor-pointer hover:shadow-lg ${
+		isReserved
+		 ? 'border-warning/60 bg-warning/5 hover:border-warning hover:shadow-warning/10'
+		 : 'hover:border-primary/40 hover:shadow-primary/5'
+	 }`}
   >
    <div className="relative h-48 bg-muted overflow-hidden">
 	{displayImage ? (
@@ -57,7 +62,10 @@ function ListingCard({ listing, onOpen, onContact }) {
 	  <Car className="h-16 w-16 text-muted-foreground/30" />
 	 </div>
 	)}
-	<Badge variant={status.variant} className="absolute top-3 right-3">
+	<Badge
+	 variant={status.variant}
+	 className={`absolute top-3 right-3 ${isReserved ? 'bg-warning text-black border-warning' : ''}`}
+	>
 	 {status.label}
 	</Badge>
 	{hasMultipleImages && (
@@ -85,12 +93,17 @@ function ListingCard({ listing, onOpen, onContact }) {
 	  <MessageSquare className="h-4 w-4" /> Verkäufer kontaktieren
 	 </Button>
 	)}
+	{isStaff && isReserved && (
+	 <Button onClick={(event) => onRelease(event, listing)} className="w-full gap-2 cursor-pointer" variant="outline">
+	  <RotateCcw className="h-4 w-4" /> Wieder freigeben
+	 </Button>
+	)}
    </CardContent>
   </Card>
  );
 }
 
-function ListingGrid({ listings, virtualized, onOpen, onContact }) {
+function ListingGrid({ listings, virtualized, isStaff, onOpen, onContact, onRelease }) {
  const gridRef = useRef(null);
  const [columns, setColumns] = useState(getColumnCount);
  const [scrollElement, setScrollElement] = useState(null);
@@ -129,7 +142,7 @@ function ListingGrid({ listings, virtualized, onOpen, onContact }) {
   return (
    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 	{listings.map(listing => (
-	 <ListingCard key={listing.id} listing={listing} onOpen={onOpen} onContact={onContact} />
+	 <ListingCard key={listing.id} listing={listing} isStaff={isStaff} onOpen={onOpen} onContact={onContact} onRelease={onRelease} />
 	))}
    </div>
   );
@@ -148,7 +161,7 @@ function ListingGrid({ listings, virtualized, onOpen, onContact }) {
 	  style={{ transform: `translateY(${virtualRow.start - scrollMargin}px)` }}
 	 >
 	  {rowListings.map(listing => (
-	   <ListingCard key={listing.id} listing={listing} onOpen={onOpen} onContact={onContact} />
+	   <ListingCard key={listing.id} listing={listing} isStaff={isStaff} onOpen={onOpen} onContact={onContact} onRelease={onRelease} />
 	  ))}
 	 </div>
 	);
@@ -162,7 +175,7 @@ function ListingGrid({ listings, virtualized, onOpen, onContact }) {
  * Click on a card opens the Pokémon-card detail modal.
  */
 export default function CatalogPage() {
- const { user, login } = useAuth();
+ const { user, login, hasRole } = useAuth();
  const navigate = useNavigate();
  const { addViewed } = useRecentlyViewed();
  const [listings, setListings] = useState([]);
@@ -178,6 +191,7 @@ export default function CatalogPage() {
  const [loginPrompt, setLoginPrompt] = useState(null);
  const [detailId, setDetailId] = useState(null); // Pokémon-card modal
  const virtualScrolling = useCatalogSparMode();
+ const isStaff = hasRole('mitarbeiter');
 
  useEffect(() => {
  const timeout = setTimeout(() => {
@@ -197,7 +211,7 @@ export default function CatalogPage() {
  const fetchListings = useCallback(async () => {
  try {
  const params = new URLSearchParams();
- params.set('status', 'available');
+ params.set('status', isStaff ? 'catalog' : 'available');
  if (categoryFilter && categoryFilter !== 'all') params.set('category', categoryFilter);
  if (brandFilter && brandFilter !== 'all') params.set('brand', brandFilter);
  if (modelFilter && modelFilter !== 'all') params.set('model', modelFilter);
@@ -215,7 +229,7 @@ export default function CatalogPage() {
  } finally {
  setLoading(false);
  }
- }, [brandFilter, categoryFilter, debouncedSearchQuery, modelFilter, sellerFilter, sortOrder]);
+ }, [brandFilter, categoryFilter, debouncedSearchQuery, isStaff, modelFilter, sellerFilter, sortOrder]);
 
  useEffect(() => { fetchListings(); }, [fetchListings]);
 
@@ -233,6 +247,26 @@ export default function CatalogPage() {
  const handleCardClick = (listing) => {
  addViewed(listing.id);
  setDetailId(listing.id);
+ };
+
+ const handleRelease = async (event, listing) => {
+ event.stopPropagation();
+ try {
+  const res = await fetch(`/api/listings/${listing.id}`, {
+   method: 'PUT',
+   headers: { 'Content-Type': 'application/json' },
+   credentials: 'include',
+   body: JSON.stringify({ status: 'available' }),
+  });
+  if (!res.ok) {
+   const data = await res.json();
+   throw new Error(data.error || 'Status konnte nicht zurückgesetzt werden.');
+  }
+  toast.success(`${listing.brand} ${listing.model} ist wieder verfügbar.`);
+  fetchListings();
+ } catch (err) {
+  toast.error(err.message || 'Status konnte nicht zurückgesetzt werden.');
+ }
  };
 
  const confirmLogin = () => {
@@ -393,8 +427,10 @@ export default function CatalogPage() {
  <ListingGrid
   listings={filteredListings}
   virtualized={virtualScrolling}
+	isStaff={isStaff}
   onOpen={handleCardClick}
   onContact={handleContact}
+	onRelease={handleRelease}
  />
  )}
 

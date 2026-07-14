@@ -15,7 +15,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import PopupShell from '@/components/PopupShell';
-import OnboardingOverlay from '@/components/Onboarding/OnboardingOverlay';
 
 const Tile = ({ id, onClick, colSpan = '', icon: Icon, iconColor, iconBg, title, subtitle, value, valueColor, cta, borderColor = 'border-border/50', children, loading }) => (
   <Card id={id} onClick={onClick} className={`${colSpan} relative overflow-hidden group bg-card/60 shadow-lg hover:shadow-lg ${borderColor} hover:border-opacity-60 transition-all duration-150 ${onClick ? 'cursor-pointer' : ''}`}>
@@ -193,13 +192,13 @@ export default function WorkspacePage() {
 
  {/* Main Staff Tiles */}
  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
- <Tile id="tour-tickets" loading={loading} onClick={() => openModal('tickets')} colSpan="md:col-span-2" icon={Ticket} iconColor="text-warning" iconBg="bg-warning/10"
+ <Tile loading={loading} onClick={() => openModal('tickets')} colSpan="md:col-span-2" icon={Ticket} iconColor="text-warning" iconBg="bg-warning/10"
  title="Support Tickets" subtitle="Dein Posteingang für Kundenanfragen" value={staffStats?.open_tickets ?? 0} valueColor="text-warning"
  cta="Zum Postfach" borderColor="border-warning/20 hover:border-warning/40" />
- <Tile id="tour-vault" loading={loading} onClick={() => openModal('vault')} icon={Wallet} iconColor="text-success" iconBg="bg-success/10"
+ <Tile loading={loading} onClick={() => openModal('vault')} icon={Wallet} iconColor="text-success" iconBg="bg-success/10"
  title="Mein Tresor" value={`$ ${(staffStats?.vault_balance ?? 0).toLocaleString('de-DE')}`} valueColor="text-success"
  cta="Ansehen" borderColor="border-success/20 hover:border-success/40" />
- <Tile id="tour-listings" loading={loading} onClick={() => openModal('listings')} colSpan="md:col-span-2" icon={Package} iconColor="text-primary" iconBg="bg-primary/10"
+ <Tile loading={loading} onClick={() => openModal('listings')} colSpan="md:col-span-2" icon={Package} iconColor="text-primary" iconBg="bg-primary/10"
  title="Meine Inserate" subtitle="Aktive Fahrzeuge auf dem Marktplatz" value={staffStats?.active_listings ?? 0} valueColor="text-primary"
  cta="Verwalten" borderColor="border-primary/20 hover:border-primary/40" />
 
@@ -340,8 +339,6 @@ export default function WorkspacePage() {
       </DialogFooter>
     </DialogContent>
   </Dialog>
-
-  <OnboardingOverlay role="mitarbeiter" />
   </div>
  );
 }

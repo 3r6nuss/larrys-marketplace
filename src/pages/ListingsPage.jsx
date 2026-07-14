@@ -17,7 +17,7 @@ import { getThumbnailImagePath } from '@/lib/utils';
 
 const CATEGORIES = [
  'Sport', 'Super', 'Sports Classic', 'SUV', 'Muscle', 'Limousine',
- 'Kompakt', 'Coupé', 'Offroad', 'Van', 'Sonstige',
+ 'Kompakt', 'Coupé', 'Offroad', 'Van', 'Limitiert', 'Sonstige',
 ];
 const STATUS_MAP = {
  available: { label: 'Verfügbar', class: 'bg-success/15 text-success border-success/30' },

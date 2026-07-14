@@ -22,6 +22,7 @@ const CATEGORY_COLORS = {
  Coupé: 'border-purple-500/50 shadow-purple-500/10',
  Offroad: 'border-orange-500/50 shadow-orange-500/10',
  Van: 'border-teal-500/50 shadow-teal-500/10',
+ Limitiert: 'border-yellow-400/60 shadow-yellow-400/15',
  Sonstige: 'border-zinc-500/50 shadow-zinc-500/10',
 };
 
@@ -34,6 +35,7 @@ const CATEGORY_ACCENT = {
  Coupé: 'text-purple-400',
  Offroad: 'text-orange-400',
  Van: 'text-teal-400',
+ Limitiert: 'text-yellow-400',
  Sonstige: 'text-zinc-400',
 };
 
@@ -166,7 +168,10 @@ export default function VehicleDetailModal({ listingId, open, onClose }) {
 
  return (
  <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
- <DialogContent className={`max-w-7xl sm:max-w-7xl w-[95vw] md:h-[620px] max-h-[95vh] md:max-h-[620px] p-0 overflow-hidden border-2 ${catColor} bg-card/95 holo-shimmer`}>
+ <DialogContent
+  overlayProps={{ onClick: onClose }}
+  className={`max-w-7xl sm:max-w-7xl w-[95vw] md:h-[620px] max-h-[95vh] md:max-h-[620px] p-0 overflow-hidden border-2 ${catColor} bg-card/95 holo-shimmer`}
+ >
  {/* Hidden accessible title */}
  <DialogTitle className="sr-only">
  {listing ? `${listing.brand} ${listing.model}` : 'Fahrzeug-Details'}

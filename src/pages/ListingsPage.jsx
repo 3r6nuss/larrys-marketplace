@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Plus, MoreHorizontal, Pencil, Trash2, Eye, Car, ImagePlus, X, ClipboardPaste, Star, GripVertical, Crown, DollarSign } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash2, Eye, Car, ImagePlus, X, ClipboardPaste, Star, GripVertical, Crown, DollarSign, ArrowUpDown } from 'lucide-react';
 import { getThumbnailImagePath } from '@/lib/utils';
 
 const CATEGORIES = [
@@ -27,6 +27,7 @@ const STATUS_MAP = {
 
 export default function ListingsPage() {
  const { user, hasRole } = useAuth();
+ const userId = user?.id;
  const [listings, setListings] = useState([]);
  const [catalog, setCatalog] = useState([]);
  const [vehicleOptions, setVehicleOptions] = useState([]);
@@ -45,6 +46,7 @@ export default function ListingsPage() {
  
  const [staffList, setStaffList] = useState([]);
  const [selectedSellerId, setSelectedSellerId] = useState('me');
+ const [sortOrder, setSortOrder] = useState('newest');
 
  // Form state
  const [form, setForm] = useState({
@@ -78,16 +80,17 @@ export default function ListingsPage() {
 
  const fetchListings = useCallback(async () => {
  try {
- const params = selectedSellerId === 'me' ? `?seller_id=${user?.id}` : 
-                selectedSellerId !== 'all' ? `?seller_id=${selectedSellerId}` : '';
- const res = await fetch(`/api/listings${params}`, { credentials: 'include' });
+ const params = new URLSearchParams({ sort: sortOrder });
+ if (selectedSellerId === 'me' && userId) params.set('seller_id', userId);
+ if (selectedSellerId !== 'me' && selectedSellerId !== 'all') params.set('seller_id', selectedSellerId);
+ const res = await fetch(`/api/listings?${params}`, { credentials: 'include' });
  if (res.ok) setListings(await res.json());
  } catch (err) {
  console.error(err);
  } finally {
  setLoading(false);
  }
- }, [selectedSellerId]);
+ }, [selectedSellerId, sortOrder, userId]);
 
  useEffect(() => { 
  fetchListings(); 
@@ -463,6 +466,20 @@ export default function ListingsPage() {
      </SelectContent>
    </Select>
  )}
+ <Select value={sortOrder} onValueChange={setSortOrder}>
+  <SelectTrigger className="w-[190px] cursor-pointer">
+   <ArrowUpDown className="h-4 w-4 mr-2" />
+   <SelectValue />
+  </SelectTrigger>
+  <SelectContent>
+   <SelectItem value="newest">Neueste zuerst</SelectItem>
+   <SelectItem value="oldest">Älteste zuerst</SelectItem>
+   <SelectItem value="name_asc">Fahrzeug A–Z</SelectItem>
+   <SelectItem value="name_desc">Fahrzeug Z–A</SelectItem>
+   <SelectItem value="plate_asc">Kennzeichen A–Z</SelectItem>
+   <SelectItem value="plate_desc">Kennzeichen Z–A</SelectItem>
+  </SelectContent>
+ </Select>
  <Button onClick={openCreate} className="gap-2 cursor-pointer">
  <Plus className="h-4 w-4" /> Neues Inserat
  </Button>

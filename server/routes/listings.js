@@ -140,6 +140,8 @@ router.get('/', optionalAuth, async (req, res) => {
     oldest: 'l.listed_at ASC',
     name_asc: 'l.brand ASC, l.model ASC',
     name_desc: 'l.brand DESC, l.model DESC',
+    plate_asc: "CASE WHEN l.plate IS NULL OR l.plate = '' THEN 1 ELSE 0 END, l.plate ASC",
+    plate_desc: "CASE WHEN l.plate IS NULL OR l.plate = '' THEN 1 ELSE 0 END, l.plate DESC",
   }[sort] || 'l.listed_at DESC';
 
   if (category && category !== 'all') { where.push('l.category = ?'); params.push(category); }

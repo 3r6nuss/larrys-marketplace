@@ -49,6 +49,22 @@ const Tile = ({ id, onClick, colSpan = '', icon: Icon, iconColor, iconBg, title,
   </Card>
 );
 
+const sortDirectSaleListings = (listings, sortOrder) => [...listings].sort((left, right) => {
+  const byText = (leftValue, rightValue, direction = 1) => {
+    if (!leftValue && !rightValue) return 0;
+    if (!leftValue) return 1;
+    if (!rightValue) return -1;
+    return leftValue.localeCompare(rightValue, 'de', { sensitivity: 'base' }) * direction;
+  };
+
+  if (sortOrder === 'oldest') return new Date(left.listed_at) - new Date(right.listed_at);
+  if (sortOrder === 'name_asc') return byText(`${left.brand} ${left.model}`, `${right.brand} ${right.model}`);
+  if (sortOrder === 'name_desc') return byText(`${left.brand} ${left.model}`, `${right.brand} ${right.model}`, -1);
+  if (sortOrder === 'plate_asc') return byText(left.plate, right.plate);
+  if (sortOrder === 'plate_desc') return byText(left.plate, right.plate, -1);
+  return new Date(right.listed_at) - new Date(left.listed_at);
+});
+
 export default function WorkspacePage() {
  const { user } = useAuth();
  const [searchParams, setSearchParams] = useSearchParams();
@@ -62,6 +78,7 @@ export default function WorkspacePage() {
  const [activeListings, setActiveListings] = useState([]);
  const [directSellOpen, setDirectSellOpen] = useState(false);
  const [directSellForm, setDirectSellForm] = useState({ listingId: '', soldToName: '', soldPrice: '' });
+ const [directSellSort, setDirectSellSort] = useState('newest');
 
  const currentDate = new Date().toLocaleDateString('de-DE', {
  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -277,6 +294,22 @@ export default function WorkspacePage() {
       <div className="space-y-4 py-3">
         {/* Listing Selector */}
         <div className="space-y-1.5">
+          <Label htmlFor="direct_sort" className="text-xs font-semibold text-muted-foreground uppercase">Sortierung</Label>
+          <select
+            id="direct_sort"
+            value={directSellSort}
+            onChange={e => setDirectSellSort(e.target.value)}
+            className="w-full h-9 rounded-lg border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+          >
+            <option value="newest">Neueste zuerst</option>
+            <option value="oldest">Älteste zuerst</option>
+            <option value="name_asc">Fahrzeug A–Z</option>
+            <option value="name_desc">Fahrzeug Z–A</option>
+            <option value="plate_asc">Kennzeichen A–Z</option>
+            <option value="plate_desc">Kennzeichen Z–A</option>
+          </select>
+        </div>
+        <div className="space-y-1.5">
           <Label htmlFor="direct_listing" className="text-xs font-semibold text-muted-foreground uppercase">Fahrzeug auswählen *</Label>
           <select
             id="direct_listing"
@@ -293,7 +326,7 @@ export default function WorkspacePage() {
             className="w-full h-9 rounded-lg border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
           >
             <option value="">-- Fahrzeug auswählen --</option>
-            {activeListings.map(l => (
+            {sortDirectSaleListings(activeListings, directSellSort).map(l => (
               <option key={l.id} value={l.id.toString()}>
                 {l.brand} {l.model} ({l.plate || 'kein Kennzeichen'}) - ${l.custom_price?.toLocaleString('de-DE')}
               </option>

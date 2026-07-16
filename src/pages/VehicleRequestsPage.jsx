@@ -308,32 +308,36 @@ export default function VehicleRequestsPage({ isModal }) {
        <Sparkles className="h-5 w-5 text-chart-2" />
        Neues Wunschfahrzeug
       </CardTitle>
-      <CardDescription>Wähle ein Fahrzeug aus unserem Katalog aus.</CardDescription>
+      <CardDescription>Trage dein Wunschfahrzeug ein oder nutze einen Vorschlag aus dem Katalog.</CardDescription>
      </CardHeader>
      <CardContent>
       <form onSubmit={handleCreate} className="space-y-4">
        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5">
          <label className="text-xs font-bold uppercase text-muted-foreground">Marke *</label>
-         <Select value={brand} onValueChange={v => { setBrand(v); setModel(''); }}>
-          <SelectTrigger className="cursor-pointer"><SelectValue placeholder="Marke wählen..." /></SelectTrigger>
-          <SelectContent className="max-h-60">
-           {catalogBrands.map(b => (
-            <SelectItem key={b} value={b} className="cursor-pointer">{b}</SelectItem>
-           ))}
-          </SelectContent>
-         </Select>
+         <Input
+          value={brand}
+          onChange={e => { setBrand(e.target.value); setModel(''); }}
+          list="request-brand-options"
+          placeholder="Marke eingeben..."
+          autoComplete="off"
+         />
+         <datalist id="request-brand-options">
+          {catalogBrands.map(b => <option key={b} value={b} />)}
+         </datalist>
         </div>
         <div className="space-y-1.5">
          <label className="text-xs font-bold uppercase text-muted-foreground">Modell *</label>
-         <Select value={model} onValueChange={setModel} disabled={!brand}>
-          <SelectTrigger className="cursor-pointer"><SelectValue placeholder={brand ? "Modell wählen..." : "Erst Marke wählen"} /></SelectTrigger>
-          <SelectContent className="max-h-60">
-           {catalogModels.map((m, i) => (
-            <SelectItem key={`${m}-${i}`} value={m} className="cursor-pointer">{m}</SelectItem>
-           ))}
-          </SelectContent>
-         </Select>
+         <Input
+          value={model}
+          onChange={e => setModel(e.target.value)}
+          list="request-model-options"
+          placeholder="Modell eingeben..."
+          autoComplete="off"
+         />
+         <datalist id="request-model-options">
+          {catalogModels.map((m, i) => <option key={`${m}-${i}`} value={m} />)}
+         </datalist>
         </div>
        </div>
        <div className="space-y-1.5">

@@ -328,13 +328,6 @@ export default function ListingsPage() {
  fetchListings();
  } catch { toast.error('Netzwerkfehler.'); }
  } else {
- // For create: send first image as image_base64, rest as images_base64 array
- if (newImages.length > 0) body.image_base64 = newImages[0].base64;
- if (newImages.length > 1) body.images_base64 = JSON.stringify(newImages.slice(1).map(i => i.base64));
- 
- let coverIndex = images.findIndex(i => i.isCover);
- body.cover_index = coverIndex === -1 ? 0 : coverIndex;
-
  try {
  const res = await fetch('/api/listings', {
  method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -342,7 +335,31 @@ export default function ListingsPage() {
  });
  if (res.ok) {
  const data = await res.json();
- toast.success('Inserat erstellt!');
+ const uploadedImages = [];
+ let failedUploads = 0;
+ for (const image of newImages) {
+  const uploadResponse = await fetch(`/api/listings/${data.id}/images`, {
+   method: 'POST', headers: { 'Content-Type': 'application/json' },
+   credentials: 'include', body: JSON.stringify({ image_base64: image.base64 }),
+  });
+  if (!uploadResponse.ok) {
+   failedUploads++;
+   continue;
+  }
+  const savedImages = await uploadResponse.json();
+  uploadedImages.push(savedImages[savedImages.length - 1]);
+ }
+
+ const coverIndex = images.findIndex(image => image.isCover);
+ const coverImage = uploadedImages[coverIndex === -1 ? 0 : coverIndex];
+ if (coverImage && coverIndex > 0) {
+  await fetch(`/api/listings/${data.id}/images/${coverImage.id}/cover`, {
+   method: 'PUT', credentials: 'include',
+  });
+ }
+
+ if (failedUploads > 0) toast.warning(`Inserat erstellt, aber ${failedUploads} Bild(er) konnten nicht hochgeladen werden.`);
+ else toast.success('Inserat erstellt!');
  if (data.matched_requests_count > 0) {
   toast.success(`🎉 ${data.matched_requests_count} Kunden suchen dieses Fahrzeug! Sie wurden benachrichtigt.`, { duration: 6000 });
  }

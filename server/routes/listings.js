@@ -45,6 +45,16 @@ async function saveBase64Image(b64) {
   return saveUploadedImage(buffer);
 }
 
+async function saveBase64Images(images, concurrency = 3) {
+  const savedImages = [];
+  for (let index = 0; index < images.length; index += concurrency) {
+    const batch = images.slice(index, index + concurrency);
+    const paths = await Promise.all(batch.map(image => saveBase64Image(image).catch(() => null)));
+    savedImages.push(...paths.filter(Boolean));
+  }
+  return savedImages;
+}
+
 /** GET /api/listings/recent?ids=1,2,3 — Public: lightweight recently viewed cards */
 router.get('/recent', async (req, res) => {
   const ids = String(req.query.ids || '')
@@ -251,9 +261,19 @@ router.post('/', requireAuth, requireRole('mitarbeiter'), upload.single('image')
   const { catalog_id, brand, model, plate, category, custom_price, discount_pct, notes, image_base64, images_base64 } = req.body;
   if (!brand || !model) return res.status(400).json({ error: 'Marke und Modell erforderlich.' });
 
-  let imagePath = null;
-  if (req.file) imagePath = await saveUploadedImage(req.file.buffer).catch(() => null);
-  else if (image_base64) imagePath = await saveBase64Image(image_base64).catch(() => null);
+  let extraImages = [];
+  if (images_base64) {
+    try { extraImages = JSON.parse(images_base64); } catch { extraImages = []; }
+  }
+
+  let allImages = [];
+  if (req.file) {
+    const imagePath = await saveUploadedImage(req.file.buffer).catch(() => null);
+    if (imagePath) allImages.push(imagePath);
+  } else {
+    allImages = await saveBase64Images([image_base64, ...extraImages].filter(Boolean));
+  }
+  const imagePath = allImages[0] || null;
 
   try {
     const created = await pool.query(
@@ -264,19 +284,6 @@ router.post('/', requireAuth, requireRole('mitarbeiter'), upload.single('image')
     const listingId = created.rows[0].id;
 
     // Save images to listing_images table
-    const allImages = [];
-    if (imagePath) allImages.push(imagePath);
-
-    // Parse multi-image array
-    let extraImages = [];
-    if (images_base64) {
-      try { extraImages = JSON.parse(images_base64); } catch { extraImages = []; }
-    }
-    for (const b64 of extraImages) {
-      const p = await saveBase64Image(b64).catch(() => null);
-      if (p) allImages.push(p);
-    }
-
     const coverIdx = req.body.cover_index !== undefined ? toInt(req.body.cover_index) : 0;
 
     for (let i = 0; i < allImages.length; i++) {

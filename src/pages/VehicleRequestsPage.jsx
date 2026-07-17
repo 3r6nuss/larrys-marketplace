@@ -287,20 +287,18 @@ export default function VehicleRequestsPage({ isModal }) {
      </h1>
      <p className="text-muted-foreground text-sm mt-1">
       {isStaff
-       ? 'Offene Kundenanfragen — weise ein passendes Fahrzeug zu.'
+         ? 'Verwalte offene Anfragen oder erstelle einen eigenen Fahrzeugwunsch.'
        : 'Dein Wunschfahrzeug ist nicht im Katalog? Frag es hier an!'}
      </p>
     </div>
-    {!isStaff && (
-     <Button onClick={() => setShowForm(!showForm)} className="gap-2 cursor-pointer shadow-lg shadow-chart-2/20">
-      <Plus className="h-4 w-4" />
-      Anfrage erstellen
-     </Button>
-    )}
+      <Button onClick={() => setShowForm(!showForm)} className="gap-2 cursor-pointer shadow-lg shadow-chart-2/20">
+       <Plus className="h-4 w-4" />
+       Anfrage erstellen
+      </Button>
    </div>
 
-   {/* Create Form (Customers only) */}
-   {showForm && !isStaff && (
+     {/* Create Form */}
+     {showForm && (
     <Card className="border-chart-2/30 bg-card/80 overflow-hidden animate-in slide-in-from-top-2 duration-200">
      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-chart-2/60 via-chart-2 to-chart-2/60" />
      <CardHeader>
@@ -376,11 +374,9 @@ export default function VehicleRequestsPage({ isModal }) {
       <p className="text-muted-foreground">
        {isStaff ? 'Keine offenen Fahrzeuganfragen.' : 'Du hast noch keine Fahrzeuganfragen.'}
       </p>
-      {!isStaff && (
-       <Button onClick={() => setShowForm(true)} variant="outline" className="mt-4 gap-2 cursor-pointer">
-        <Plus className="h-4 w-4" /> Erste Anfrage erstellen
-       </Button>
-      )}
+      <Button onClick={() => setShowForm(true)} variant="outline" className="mt-4 gap-2 cursor-pointer">
+       <Plus className="h-4 w-4" /> Erste Anfrage erstellen
+      </Button>
      </CardContent>
     </Card>
    ) : (

@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import {
   ArrowRight, BarChart3, Users, ScrollText, Database,
-  Trophy, History, Crown, Shield, StickyNote, Bot, Send, Loader2
+  Trophy, History, Crown, Shield, StickyNote, Bot, Send, Loader2, ArchiveRestore
 } from 'lucide-react';
 import PopupShell from '@/components/PopupShell';
 
@@ -193,6 +193,22 @@ export default function AdminDashboard() {
             Verwalten <ArrowRight className="h-3 w-3" />
           </div>
         </Tile>
+
+        {hasRole('superadmin') && (
+          <Tile
+            onClick={() => openModal('backup')}
+            icon={ArchiveRestore}
+            iconColor="text-cyan-400"
+            iconBg="bg-cyan-400/10"
+            title="Datenbank-Backups"
+            subtitle="Tabellen sichern und wiederherstellen"
+            borderColor="border-cyan-400/20 hover:border-cyan-400/40"
+          >
+            <div className="text-sm font-bold text-cyan-400 mt-2 flex items-center gap-1">
+              Öffnen <ArrowRight className="h-3 w-3" />
+            </div>
+          </Tile>
+        )}
 
         {/* Leaderboard */}
         <Tile

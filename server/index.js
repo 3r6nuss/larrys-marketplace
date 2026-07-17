@@ -20,6 +20,7 @@ import logsRoutes from './routes/logs.js';
 import statsRoutes from './routes/stats.js';
 import reviewsRoutes from './routes/reviews.js';
 import requestsRoutes from './routes/requests.js';
+import backupRoutes from './routes/backup.js';
 import './discord-bot.js';
 
 const app = express();
@@ -134,6 +135,7 @@ async function setupAndStart() {
     app.use('/api/stats', statsRoutes);
     app.use('/api/reviews', reviewsRoutes);
     app.use('/api/requests', requestsRoutes);
+    app.use('/api/backup', backupRoutes);
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚗 Larry's API running on http://localhost:${PORT}`);

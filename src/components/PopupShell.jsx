@@ -14,6 +14,7 @@ const ProfilePage = lazy(() => import('@/pages/ProfilePage'));
 const LeaderboardPage = lazy(() => import('@/pages/LeaderboardPage'));
 const ActivityPage = lazy(() => import('@/pages/ActivityPage'));
 const VehicleRequestsPage = lazy(() => import('@/pages/VehicleRequestsPage'));
+const BackupPage = lazy(() => import('@/pages/BackupPage'));
 
 const MODAL_MAP = {
  listings: ListingsPage,
@@ -28,6 +29,7 @@ const MODAL_MAP = {
  leaderboard: LeaderboardPage,
  activity: ActivityPage,
  requests: VehicleRequestsPage,
+ backup: BackupPage,
 };
 
 function ModalFallback() {

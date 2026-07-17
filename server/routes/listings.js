@@ -3,7 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import pool from '../db.js';
 import { requireAuth, optionalAuth, requireRole, logAction } from '../middleware/auth.js';
-import { canManageOwnedResource, toCount, toId, toInt, userHasRole } from '../lib/route-helpers.js';
+import { buildListingSearchFilter, canManageOwnedResource, toCount, toId, toInt, userHasRole } from '../lib/route-helpers.js';
 import { deleteListingImageFiles, saveListingImage } from '../lib/listing-images.js';
 
 const router = Router();
@@ -156,7 +156,11 @@ router.get('/', optionalAuth, async (req, res) => {
     params.push(status);
   }
   if (seller_id) { where.push('l.seller_id = ?'); params.push(seller_id); }
-  if (q) { where.push('(l.brand LIKE ? OR l.model LIKE ? OR l.plate LIKE ?)'); params.push(`%${q}%`, `%${q}%`, `%${q}%`); }
+  const searchFilter = buildListingSearchFilter(q);
+  if (searchFilter.clause) {
+    where.push(searchFilter.clause);
+    params.push(...searchFilter.params);
+  }
 
   const sql = `SELECT l.*, u.display_name as seller_name, u.avatar_url as seller_avatar
                FROM listings l LEFT JOIN users u ON l.seller_id = u.id

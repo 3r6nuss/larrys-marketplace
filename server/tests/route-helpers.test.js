@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildListingSearchFilter,
   canManageOwnedResource,
   hasDiscordNotificationsEnabled,
   toCount,
@@ -23,6 +24,14 @@ test('toCount normalizes invalid and empty values to 0', () => {
   assert.equal(toCount(undefined), 0);
   assert.equal(toCount('not-a-number'), 0);
   assert.equal(toCount('15'), 15);
+});
+
+test('buildListingSearchFilter searches every term case-insensitively across vehicle fields', () => {
+  assert.deepEqual(buildListingSearchFilter('  bMw   M3 '), {
+    clause: '(l.brand ILIKE ? OR l.model ILIKE ? OR l.plate ILIKE ?) AND (l.brand ILIKE ? OR l.model ILIKE ? OR l.plate ILIKE ?)',
+    params: ['%bMw%', '%bMw%', '%bMw%', '%M3%', '%M3%', '%M3%'],
+  });
+  assert.deepEqual(buildListingSearchFilter('   '), { clause: null, params: [] });
 });
 
 test('userHasRole supports Set and Array role collections', () => {

@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getThumbnailImagePath } from '@/lib/utils';
 import {
@@ -47,6 +48,7 @@ export default function TicketsPage({ isModal }) {
  const [detailLoading, setDetailLoading] = useState(false);
  const [message, setMessage] = useState('');
  const [sending, setSending] = useState(false);
+ const [creatingTicket, setCreatingTicket] = useState(false);
  const [statusFilter, setStatusFilter] = useState('all');
  const [assignedToFilter, setAssignedToFilter] = useState('mine');
   const [showClosed, setShowClosed] = useState(false);
@@ -54,9 +56,8 @@ export default function TicketsPage({ isModal }) {
   const [haltStop, setHaltStop] = useState(false);
   const [showWorkspace, setShowWorkspace] = useState(false);
   const messagesEndRef = useRef(null);
-  const autoCreateListingRef = useRef(null);
 
- // Check if coming from catalog to create a new ticket
+ // Check if coming from the catalog with a pending ticket request
  const newTicketListingId = searchParams.get('listing');
 
  useEffect(() => {
@@ -122,6 +123,7 @@ export default function TicketsPage({ isModal }) {
          setTimeout(() => setHaltStop(false), 5000);
        } else if (data.existing_ticket_id) {
          toast.info('Du hast bereits eine Anfrage für dieses Fahrzeug.');
+         setSearchParams({ modal: 'tickets' }, { replace: true });
          selectTicket(data.existing_ticket_id);
        } else {
          toast.error(data.error || 'Fehler beim Erstellen.');
@@ -136,14 +138,28 @@ export default function TicketsPage({ isModal }) {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchTickets(); }, [fetchTickets]);
 
-  // Auto-create ticket if coming from catalog
-  useEffect(() => {
-    if (!newTicketListingId || autoCreateListingRef.current === newTicketListingId) return;
+  const dismissTicketNotice = () => {
+    if (creatingTicket) return;
 
-    autoCreateListingRef.current = newTicketListingId;
-    const timeoutId = setTimeout(() => createTicket(parseInt(newTicketListingId, 10)), 0);
-    return () => clearTimeout(timeoutId);
-  }, [newTicketListingId, createTicket]);
+    setSearchParams(currentParams => {
+      const nextParams = new URLSearchParams(currentParams);
+      nextParams.delete('listing');
+      return nextParams;
+    }, { replace: true });
+  };
+
+  const confirmTicketCreation = async () => {
+    const listingId = Number(newTicketListingId);
+    if (!Number.isInteger(listingId) || listingId <= 0) {
+      toast.error('Ungültiges Fahrzeug.');
+      dismissTicketNotice();
+      return;
+    }
+
+    setCreatingTicket(true);
+    await createTicket(listingId);
+    setCreatingTicket(false);
+  };
 
  // Auto-scroll to bottom on new messages
  useEffect(() => {
@@ -415,6 +431,44 @@ export default function TicketsPage({ isModal }) {
 
   return (
     <div className={`flex gap-4 ${isModal ? 'h-full min-h-[60vh]' : 'h-[calc(100vh-8rem)]'}`}>
+      <Dialog
+        open={Boolean(newTicketListingId)}
+        onOpenChange={open => {
+          if (!open) dismissTicketNotice();
+        }}
+      >
+        <DialogContent className="sm:max-w-lg" showCloseButton={!creatingTicket}>
+          <DialogHeader className="pr-8">
+            <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg border border-warning/30 bg-warning/10 text-warning">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <DialogTitle className="text-lg leading-tight">Wichtiger Hinweis vor der Ticket-Erstellung</DialogTitle>
+            <DialogDescription className="leading-relaxed">
+              Dieses Ticket ist ausschließlich für Fragen zum Fahrzeug und für Reservierungen vorgesehen.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm leading-relaxed">
+            <p className="font-semibold text-foreground">
+              In diesem Ticket werden keinerlei Informationen zu Preisen herausgegeben.
+            </p>
+            <p className="mt-2 text-muted-foreground">
+              Alle anderen Anliegen, insbesondere Preisabsprachen, müssen IC geklärt werden.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={dismissTicketNotice} disabled={creatingTicket}>
+              Abbrechen
+            </Button>
+            <Button onClick={confirmTicketCreation} disabled={creatingTicket} className="gap-2">
+              {creatingTicket ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ticket className="h-4 w-4" />}
+              {creatingTicket ? 'Wird erstellt...' : 'Verstanden, Ticket erstellen'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Ticket List */}
       <div className={`${selectedTicket ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-72 lg:w-80 shrink-0`}>
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">

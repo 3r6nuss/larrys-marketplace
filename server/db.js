@@ -8,18 +8,34 @@ let db;
 let isPostgres = false;
 
 const DB_HOST = process.env.DB_HOST;
+const DATABASE_URL = process.env.DATABASE_URL;
 
-if (DB_HOST) {
+if (DB_HOST || DATABASE_URL) {
   // ── PostgreSQL ──
   const pg = await import('pg');
   const { Pool } = pg.default;
 
+  const connection = DATABASE_URL
+    ? { connectionString: DATABASE_URL }
+    : {
+        host: DB_HOST,
+        port: Number.parseInt(process.env.DB_PORT || '5432', 10),
+        database: process.env.DB_NAME || 'larrys',
+        user: process.env.DB_USER || 'larrys',
+        password: process.env.DB_PASSWORD || 'larrys_secret',
+      };
+  const tls = process.env.DB_SSL === 'true'
+    ? {
+        ssl: {
+          rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false',
+          ...(process.env.DB_SSL_CA ? { ca: process.env.DB_SSL_CA.replace(/\\n/g, '\n') } : {}),
+        },
+      }
+    : {};
+
   const pool = new Pool({
-    host: DB_HOST,
-    port: parseInt(process.env.DB_PORT || '5432'),
-    database: process.env.DB_NAME || 'larrys',
-    user: process.env.DB_USER || 'larrys',
-    password: process.env.DB_PASSWORD || 'larrys_secret',
+    ...connection,
+    ...tls,
     connectionTimeoutMillis: Number.parseInt(process.env.DB_CONNECT_TIMEOUT_MS || '5000', 10),
     query_timeout: Number.parseInt(process.env.DB_QUERY_TIMEOUT_MS || '15000', 10),
     statement_timeout: Number.parseInt(process.env.DB_STATEMENT_TIMEOUT_MS || '15000', 10),
@@ -214,8 +230,12 @@ if (DB_HOST) {
 
 export async function migrate() {
   const client = db.connect ? await db.connect() : db;
+  let migrationLockAcquired = false;
   try {
     if (isPostgres) {
+      await client.query(`SELECT pg_advisory_lock(hashtext('larrys:database-migrations'))`);
+      migrationLockAcquired = true;
+
       // Define custom date(text) helper function for PostgreSQL
       await client.query(`
         CREATE OR REPLACE FUNCTION date(t text) RETURNS date AS $$
@@ -473,11 +493,12 @@ export async function migrate() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_vehicle_request_messages_request ON vehicle_request_messages(request_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC)`);
 
-    if (client.release) client.release();
     console.log('✅ Database migrations complete');
-  } catch (err) {
+  } finally {
+    if (migrationLockAcquired) {
+      await client.query(`SELECT pg_advisory_unlock(hashtext('larrys:database-migrations'))`);
+    }
     if (client.release) client.release();
-    throw err;
   }
 }
 

@@ -1,0 +1,13 @@
+.git
+.gitignore
+.vscode
+dist
+node_modules
+server/node_modules
+server/uploads
+server/routes/dev-login.js
+*.db*
+*.log
+.env*
+ha.env
+larrys.dump

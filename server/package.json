@@ -6,9 +6,11 @@
     "start": "node index.js",
     "dev": "node --watch index.js",
     "test": "node --test",
-    "images:migrate-webp": "node scripts/migrate-png-to-webp.js"
+    "images:migrate-webp": "node scripts/migrate-png-to-webp.js",
+    "images:migrate-s3": "node scripts/migrate-uploads-to-object-storage.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1095.0",
     "better-sqlite3": "^12.9.0",
     "connect-pg-simple": "^10.0.0",
     "cookie-parser": "^1.4.7",

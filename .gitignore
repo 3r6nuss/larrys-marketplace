@@ -18,6 +18,7 @@ server/uploads
 server/package-lock.json
 *.db*
 .env
+ha.env
 
 # Dev-only login bypass — never commit/deploy to the server
 server/routes/dev-login.js

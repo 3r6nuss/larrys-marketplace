@@ -1,5 +1,14 @@
 # React + Vite
 
+## Deployment
+
+Die Zwei-Host-Konfiguration mit Main-Server, Raspberry Pi, gemeinsamem
+PostgreSQL/R2-Speicher und automatischem Cloudflare-Failover steht in
+[HA-DEPLOYMENT.md](HA-DEPLOYMENT.md).
+
+Eine kurze, nicht-technische Beschreibung fuer den Auftraggeber steht in
+[AUFTRAGGEBER-KURZDOKU.md](AUFTRAGGEBER-KURZDOKU.md).
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

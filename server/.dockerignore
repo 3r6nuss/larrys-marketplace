@@ -1,0 +1,6 @@
+node_modules
+uploads
+routes/dev-login.js
+*.db*
+*.log
+.env*

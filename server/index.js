@@ -8,6 +8,7 @@ import session from 'express-session';
 import cookieParser from 'cookie-parser';
 import { migrate, seed } from './db.js';
 import db from './db.js';
+import { getImageStorageDriver } from './lib/image-storage.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -25,6 +26,16 @@ import './discord-bot.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3002');
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (isProduction || process.env.TRUST_PROXY_HOPS) {
+  const trustProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS || '1', 10);
+  if (!Number.isInteger(trustProxyHops) || trustProxyHops < 1) {
+    throw new Error('TRUST_PROXY_HOPS must be a positive integer.');
+  }
+  app.set('trust proxy', trustProxyHops);
+}
+app.disable('x-powered-by');
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -86,6 +97,15 @@ async function buildSessionStore() {
 
 async function setupAndStart() {
   try {
+    const imageStorageDriver = getImageStorageDriver();
+    if (process.env.HA_MODE === 'true' && (!db.pool || imageStorageDriver !== 's3')) {
+      throw new Error('HA_MODE requires PostgreSQL and IMAGE_STORAGE=s3.');
+    }
+    const sessionSecret = process.env.SESSION_SECRET || (isProduction ? '' : 'larrys-dev-secret-change-me');
+    if (isProduction && sessionSecret.length < 32) {
+      throw new Error('SESSION_SECRET must contain at least 32 characters in production.');
+    }
+
     await migrate();
     await seed();
 
@@ -94,14 +114,16 @@ async function setupAndStart() {
     // Session middleware
     app.use(session({
       store,
-      secret: process.env.SESSION_SECRET || 'larrys-dev-secret-change-me',
+      secret: sessionSecret,
       resave: false,
       saveUninitialized: false,
       name: 'larrys.sid',
       cookie: {
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
         httpOnly: true,
-        secure: false, // Set to true in production with HTTPS
+        secure: process.env.COOKIE_SECURE
+          ? process.env.COOKIE_SECURE === 'true'
+          : isProduction,
         sameSite: 'lax',
       },
     }));

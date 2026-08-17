@@ -32,23 +32,18 @@ const resolvePublicImageUrl = (path) => {
  return new URL(path.replace(/^\.?\//, ''), window.location.origin).toString();
 };
 
+const PHONE_NUMBER = '4392563';
+
 const buildSingleListingText = (listing) => {
   const brand = listing.brand || 'Unbekannt';
   const model = listing.model || 'Modell';
-  const plate = listing.plate || '—';
-  const category = listing.category || '—';
-  const price = listing.custom_price != null && listing.custom_price !== ''
-    ? `$${Number(listing.custom_price).toLocaleString('de-DE')}`
-    : '—';
+  const plate = listing.plate || '';
 
-  const lines = [
-    `🚗 ${brand} ${model}`,
-    `Kennzeichen: ${plate}`,
-    `Kategorie: ${category}`,
-    `Preis: ${price}`,
-  ];
+  const parts = [`${brand} ${model}`];
+  if (plate) parts.push(plate);
+  parts.push(`Tel.: ${PHONE_NUMBER}`);
 
-  return lines.join('\n');
+  return parts.join(' - ');
 };
 
 const getOriginalImagePath = (imagePath) => {

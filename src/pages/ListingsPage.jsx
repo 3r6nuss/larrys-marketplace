@@ -33,7 +33,6 @@ const resolvePublicImageUrl = (path) => {
 };
 
 const buildSingleListingText = (listing) => {
-  const imageUrl = resolvePublicImageUrl(listing.cover_image || listing.image_path || '');
   const brand = listing.brand || 'Unbekannt';
   const model = listing.model || 'Modell';
   const plate = listing.plate || '—';
@@ -47,10 +46,38 @@ const buildSingleListingText = (listing) => {
     `Kennzeichen: ${plate}`,
     `Kategorie: ${category}`,
     `Preis: ${price}`,
-    imageUrl ? `Bild: ${imageUrl}` : 'Bild: Kein Bild hinterlegt',
   ];
 
   return lines.join('\n');
+};
+
+const getOriginalImagePath = (imagePath) => {
+  if (!imagePath) return '';
+  // If it's a thumb, convert to full. If it's already full or something else, keep as-is.
+  return imagePath.replace(/-thumb\.webp$/, '-full.webp');
+};
+
+const fetchImageAsBlob = async (imagePath) => {
+  const url = resolvePublicImageUrl(getOriginalImagePath(imagePath));
+  if (!url) return null;
+  const response = await fetch(url);
+  if (!response.ok) return null;
+  const blob = await response.blob();
+  // Convert to PNG for maximum clipboard compatibility
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  const loaded = new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = reject;
+  });
+  img.src = URL.createObjectURL(blob);
+  await loaded;
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  canvas.getContext('2d').drawImage(img, 0, 0);
+  URL.revokeObjectURL(img.src);
+  return new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
 };
 
 const buildDiscordListingsText = (listings) => {
@@ -482,11 +509,34 @@ export default function ListingsPage() {
   const handleSingleCopy = async (listing) => {
     try {
       const text = buildSingleListingText(listing);
+      const imagePath = listing.cover_image || listing.image_path || '';
+
+      if (imagePath && navigator.clipboard?.write) {
+        const imageBlob = await fetchImageAsBlob(imagePath);
+        if (imageBlob) {
+          const clipboardItem = new ClipboardItem({
+            'text/plain': new Blob([text], { type: 'text/plain' }),
+            'image/png': imageBlob,
+          });
+          await navigator.clipboard.write([clipboardItem]);
+          toast.success(`${listing.brand} ${listing.model} + Bild kopiert!`);
+          return;
+        }
+      }
+
+      // Fallback: text only
       await copyToClipboard(text);
-      toast.success(`${listing.brand} ${listing.model} kopiert!`);
+      toast.success(`${listing.brand} ${listing.model} kopiert (ohne Bild).`);
     } catch (error) {
       console.error('Copy failed:', error);
-      toast.error('Kopieren fehlgeschlagen.');
+      // Fallback to text-only on any error
+      try {
+        const text = buildSingleListingText(listing);
+        await copyToClipboard(text);
+        toast.success(`${listing.brand} ${listing.model} kopiert (ohne Bild).`);
+      } catch {
+        toast.error('Kopieren fehlgeschlagen.');
+      }
     }
   };
 

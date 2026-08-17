@@ -32,6 +32,27 @@ const resolvePublicImageUrl = (path) => {
  return new URL(path.replace(/^\.?\//, ''), window.location.origin).toString();
 };
 
+const buildSingleListingText = (listing) => {
+  const imageUrl = resolvePublicImageUrl(listing.cover_image || listing.image_path || '');
+  const brand = listing.brand || 'Unbekannt';
+  const model = listing.model || 'Modell';
+  const plate = listing.plate || '—';
+  const category = listing.category || '—';
+  const price = listing.custom_price != null && listing.custom_price !== ''
+    ? `$${Number(listing.custom_price).toLocaleString('de-DE')}`
+    : '—';
+
+  const lines = [
+    `🚗 ${brand} ${model}`,
+    `Kennzeichen: ${plate}`,
+    `Kategorie: ${category}`,
+    `Preis: ${price}`,
+    imageUrl ? `Bild: ${imageUrl}` : 'Bild: Kein Bild hinterlegt',
+  ];
+
+  return lines.join('\n');
+};
+
 const buildDiscordListingsText = (listings) => {
  if (!listings || listings.length === 0) {
    return 'Keine Fahrzeuge für diesen Mitarbeiter gefunden.';
@@ -39,24 +60,7 @@ const buildDiscordListingsText = (listings) => {
 
  return listings
   .map((listing, index) => {
-    const imageUrl = resolvePublicImageUrl(listing.cover_image || listing.image_path || '');
-    const brand = listing.brand || 'Unbekannt';
-    const model = listing.model || 'Modell';
-    const plate = listing.plate || '—';
-    const category = listing.category || '—';
-    const price = listing.custom_price != null && listing.custom_price !== ''
-      ? `$${Number(listing.custom_price).toLocaleString('de-DE')}`
-      : '—';
-
-    const lines = [
-      `🚗 ${brand} ${model}`,
-      `Kennzeichen: ${plate}`,
-      `Kategorie: ${category}`,
-      `Preis: ${price}`,
-      imageUrl ? `Bild: ${imageUrl}` : 'Bild: Kein Bild hinterlegt',
-    ];
-
-    return `${lines.join('\n')}${index < listings.length - 1 ? '\n\n---\n\n' : ''}`;
+    return `${buildSingleListingText(listing)}${index < listings.length - 1 ? '\n\n---\n\n' : ''}`;
   })
   .join('\n\n');
 };
@@ -459,38 +463,52 @@ export default function ListingsPage() {
  }
  };
 
- const handleDiscordExport = async () => {
-   if (!listings.length) {
-     toast.error('Es gibt keine Fahrzeuge für den aktuellen Filter.');
-     return;
-   }
+  const copyToClipboard = async (text) => {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', 'true');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+  };
 
-   const text = buildDiscordListingsText(listings);
-   setDiscordCopying(true);
+  const handleSingleCopy = async (listing) => {
+    try {
+      const text = buildSingleListingText(listing);
+      await copyToClipboard(text);
+      toast.success(`${listing.brand} ${listing.model} kopiert!`);
+    } catch (error) {
+      console.error('Copy failed:', error);
+      toast.error('Kopieren fehlgeschlagen.');
+    }
+  };
 
-   try {
-     if (navigator.clipboard?.writeText) {
-       await navigator.clipboard.writeText(text);
-     } else {
-       const textarea = document.createElement('textarea');
-       textarea.value = text;
-       textarea.setAttribute('readonly', 'true');
-       textarea.style.position = 'fixed';
-       textarea.style.opacity = '0';
-       document.body.appendChild(textarea);
-       textarea.select();
-       document.execCommand('copy');
-       document.body.removeChild(textarea);
-     }
+  const handleDiscordExport = async () => {
+    if (!listings.length) {
+      toast.error('Es gibt keine Fahrzeuge für den aktuellen Filter.');
+      return;
+    }
 
-     toast.success(`Discord-Export kopiert (${listings.length} Fahrzeuge).`);
-   } catch (error) {
-     console.error('Discord export copy failed:', error);
-     toast.error('Kopieren fehlgeschlagen. Bitte erneut versuchen.');
-   } finally {
-     setDiscordCopying(false);
-   }
- };
+    const text = buildDiscordListingsText(listings);
+    setDiscordCopying(true);
+
+    try {
+      await copyToClipboard(text);
+      toast.success(`Discord-Export kopiert (${listings.length} Fahrzeuge).`);
+    } catch (error) {
+      console.error('Discord export copy failed:', error);
+      toast.error('Kopieren fehlgeschlagen. Bitte erneut versuchen.');
+    } finally {
+      setDiscordCopying(false);
+    }
+  };
 
   const handleSellSubmit = async () => {
     if (!sellListing) return;
@@ -638,6 +656,10 @@ export default function ListingsPage() {
  </TableCell>
  <TableCell className="text-muted-foreground">{l.view_count || 0}</TableCell>
  <TableCell>
+ <div className="flex items-center gap-1 justify-end">
+ <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => handleSingleCopy(l)} title="Kopieren für Discord">
+  <Copy className="h-4 w-4" />
+ </Button>
  <DropdownMenu>
  <DropdownMenuTrigger asChild>
  <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
@@ -676,6 +698,7 @@ export default function ListingsPage() {
  </DropdownMenuItem>
  </DropdownMenuContent>
  </DropdownMenu>
+ </div>
  </TableCell>
  </TableRow>
  );

@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Plus, MoreHorizontal, Pencil, Trash2, Eye, Car, ImagePlus, X, ClipboardPaste, Star, GripVertical, Crown, DollarSign, Search, Copy } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash2, Eye, Car, ImagePlus, X, ClipboardPaste, Star, GripVertical, Crown, DollarSign, Search, Copy, Image as ImageIcon } from 'lucide-react';
 import { getThumbnailImagePath } from '@/lib/utils';
 
 const CATEGORIES = [
@@ -506,37 +506,36 @@ export default function ListingsPage() {
     }
   };
 
-  const handleSingleCopy = async (listing) => {
+  const handleCopyText = async (listing) => {
     try {
       const text = buildSingleListingText(listing);
-      const imagePath = listing.cover_image || listing.image_path || '';
-
-      if (imagePath && navigator.clipboard?.write) {
-        const imageBlob = await fetchImageAsBlob(imagePath);
-        if (imageBlob) {
-          const clipboardItem = new ClipboardItem({
-            'text/plain': new Blob([text], { type: 'text/plain' }),
-            'image/png': imageBlob,
-          });
-          await navigator.clipboard.write([clipboardItem]);
-          toast.success(`${listing.brand} ${listing.model} + Bild kopiert!`);
-          return;
-        }
-      }
-
-      // Fallback: text only
       await copyToClipboard(text);
-      toast.success(`${listing.brand} ${listing.model} kopiert (ohne Bild).`);
+      toast.success(`Text kopiert — ${listing.brand} ${listing.model}`);
     } catch (error) {
-      console.error('Copy failed:', error);
-      // Fallback to text-only on any error
-      try {
-        const text = buildSingleListingText(listing);
-        await copyToClipboard(text);
-        toast.success(`${listing.brand} ${listing.model} kopiert (ohne Bild).`);
-      } catch {
-        toast.error('Kopieren fehlgeschlagen.');
+      console.error('Text copy failed:', error);
+      toast.error('Text kopieren fehlgeschlagen.');
+    }
+  };
+
+  const handleCopyImage = async (listing) => {
+    const imagePath = listing.cover_image || listing.image_path || '';
+    if (!imagePath) {
+      toast.error('Kein Bild vorhanden.');
+      return;
+    }
+    try {
+      const imageBlob = await fetchImageAsBlob(imagePath);
+      if (imageBlob && navigator.clipboard?.write) {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': imageBlob }),
+        ]);
+        toast.success(`Bild kopiert — ${listing.brand} ${listing.model}`);
+      } else {
+        toast.error('Bild konnte nicht kopiert werden.');
       }
+    } catch (error) {
+      console.error('Image copy failed:', error);
+      toast.error('Bild kopieren fehlgeschlagen.');
     }
   };
 
@@ -707,8 +706,11 @@ export default function ListingsPage() {
  <TableCell className="text-muted-foreground">{l.view_count || 0}</TableCell>
  <TableCell>
  <div className="flex items-center gap-1 justify-end">
- <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => handleSingleCopy(l)} title="Kopieren für Discord">
+ <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => handleCopyText(l)} title="Text kopieren">
   <Copy className="h-4 w-4" />
+ </Button>
+ <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => handleCopyImage(l)} title="Bild kopieren" disabled={!l.cover_image && !l.image_path}>
+  <ImageIcon className="h-4 w-4" />
  </Button>
  <DropdownMenu>
  <DropdownMenuTrigger asChild>

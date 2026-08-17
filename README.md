@@ -2,8 +2,8 @@
 
 ## Deployment
 
-Die Zwei-Host-Konfiguration mit Main-Server, Raspberry Pi, gemeinsamem
-PostgreSQL/R2-Speicher und automatischem Cloudflare-Failover steht in
+Die Zwei-Host-Konfiguration mit Main-Server, Raspberry Pi und gemeinsamem
+PostgreSQL/S3-Speicher steht in
 [HA-DEPLOYMENT.md](HA-DEPLOYMENT.md).
 
 Eine kurze, nicht-technische Beschreibung fuer den Auftraggeber steht in

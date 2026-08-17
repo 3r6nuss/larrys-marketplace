@@ -60,32 +60,14 @@ services:
     depends_on:
       larrys-api:
         condition: service_healthy
-    expose:
-      - "80"
+    ports:
+      - "${LARRYS_PORT:-8081}:80"
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/readyz"]
       interval: 15s
       timeout: 5s
       retries: 4
       start_period: 15s
-    logging:
-      driver: json-file
-      options:
-        max-size: 10m
-        max-file: "3"
-
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    restart: unless-stopped
-    depends_on:
-      larrys-marketplace:
-        condition: service_healthy
-    command:
-      - tunnel
-      - --no-autoupdate
-      - run
-      - --token
-      - ${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN must be set}
     logging:
       driver: json-file
       options:

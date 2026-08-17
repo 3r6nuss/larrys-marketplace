@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Plus, MoreHorizontal, Pencil, Trash2, Eye, Car, ImagePlus, X, ClipboardPaste, Star, GripVertical, Crown, DollarSign, Search } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash2, Eye, Car, ImagePlus, X, ClipboardPaste, Star, GripVertical, Crown, DollarSign, Search, Copy } from 'lucide-react';
 import { getThumbnailImagePath } from '@/lib/utils';
 
 const CATEGORIES = [
@@ -23,6 +23,42 @@ const STATUS_MAP = {
  available: { label: 'Verfügbar', class: 'bg-success/15 text-success border-success/30' },
  reserved: { label: 'Reserviert', class: 'bg-warning/15 text-warning border-warning/30' },
  sold: { label: 'Verkauft', class: 'bg-muted text-muted-foreground border-border' },
+};
+
+const resolvePublicImageUrl = (path) => {
+ if (!path) return '';
+ if (/^https?:\/\//i.test(path)) return path;
+ if (path.startsWith('/')) return new URL(path, window.location.origin).toString();
+ return new URL(path.replace(/^\.?\//, ''), window.location.origin).toString();
+};
+
+const buildDiscordListingsText = (listings) => {
+ if (!listings || listings.length === 0) {
+   return 'Keine Fahrzeuge für diesen Mitarbeiter gefunden.';
+ }
+
+ return listings
+  .map((listing, index) => {
+    const imageUrl = resolvePublicImageUrl(listing.cover_image || listing.image_path || '');
+    const brand = listing.brand || 'Unbekannt';
+    const model = listing.model || 'Modell';
+    const plate = listing.plate || '—';
+    const category = listing.category || '—';
+    const price = listing.custom_price != null && listing.custom_price !== ''
+      ? `$${Number(listing.custom_price).toLocaleString('de-DE')}`
+      : '—';
+
+    const lines = [
+      `🚗 ${brand} ${model}`,
+      `Kennzeichen: ${plate}`,
+      `Kategorie: ${category}`,
+      `Preis: ${price}`,
+      imageUrl ? `Bild: ${imageUrl}` : 'Bild: Kein Bild hinterlegt',
+    ];
+
+    return `${lines.join('\n')}${index < listings.length - 1 ? '\n\n---\n\n' : ''}`;
+  })
+  .join('\n\n');
 };
 
 export default function ListingsPage() {
@@ -47,6 +83,7 @@ export default function ListingsPage() {
  const [staffList, setStaffList] = useState([]);
  const [selectedSellerId, setSelectedSellerId] = useState('me');
  const [searchQuery, setSearchQuery] = useState('');
+ const [discordCopying, setDiscordCopying] = useState(false);
  const deferredSearchQuery = useDeferredValue(searchQuery);
 
  // Form state
@@ -422,6 +459,39 @@ export default function ListingsPage() {
  }
  };
 
+ const handleDiscordExport = async () => {
+   if (!listings.length) {
+     toast.error('Es gibt keine Fahrzeuge für den aktuellen Filter.');
+     return;
+   }
+
+   const text = buildDiscordListingsText(listings);
+   setDiscordCopying(true);
+
+   try {
+     if (navigator.clipboard?.writeText) {
+       await navigator.clipboard.writeText(text);
+     } else {
+       const textarea = document.createElement('textarea');
+       textarea.value = text;
+       textarea.setAttribute('readonly', 'true');
+       textarea.style.position = 'fixed';
+       textarea.style.opacity = '0';
+       document.body.appendChild(textarea);
+       textarea.select();
+       document.execCommand('copy');
+       document.body.removeChild(textarea);
+     }
+
+     toast.success(`Discord-Export kopiert (${listings.length} Fahrzeuge).`);
+   } catch (error) {
+     console.error('Discord export copy failed:', error);
+     toast.error('Kopieren fehlgeschlagen. Bitte erneut versuchen.');
+   } finally {
+     setDiscordCopying(false);
+   }
+ };
+
   const handleSellSubmit = async () => {
     if (!sellListing) return;
     try {
@@ -485,6 +555,10 @@ export default function ListingsPage() {
      </SelectContent>
    </Select>
  )}
+ <Button onClick={handleDiscordExport} disabled={!listings.length || discordCopying} className="gap-2 cursor-pointer">
+   <Copy className="h-4 w-4" />
+   {discordCopying ? 'Kopiere...' : 'Discord export'}
+ </Button>
  <div className="relative w-[260px]">
   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
   <Input

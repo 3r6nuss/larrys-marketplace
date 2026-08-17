@@ -407,6 +407,12 @@ router.delete('/:id', requireAuth, requireRole('mitarbeiter'), async (req, res) 
   if (!canManageListing(listing, req.user)) return res.status(403).json({ error: 'Keine Berechtigung.' });
 
   try {
+    // Delete all associated image files before removing DB records
+    const images = await pool.query('SELECT image_path FROM listing_images WHERE listing_id = ?', [req.params.id]);
+    const imagePaths = new Set(images.rows.map(r => r.image_path).filter(Boolean));
+    if (listing.image_path) imagePaths.add(listing.image_path);
+    await Promise.allSettled([...imagePaths].map(p => deleteListingImageFiles(p, uploadsDir)));
+
     await pool.query('DELETE FROM listings WHERE id = ?', [req.params.id]);
     await logAction(req.user.id, 'listing_deleted', 'listing', toId(req.params.id), { brand: listing.brand, model: listing.model }, req.ip);
     res.json({ success: true });

@@ -19,16 +19,7 @@ export default function OfflinePage() {
 
         <p className="text-sm leading-relaxed text-slate-300 sm:text-base">
           Leider hat sich das Team dazu entschlossen, den Website-Katalog einzustellen.
-          Bitte nutzt deshalb wieder den alten Katalog im Discord, zu finden unter{' '}
-          <a
-            href={DISCORD_LINK}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-semibold text-sky-400 underline decoration-sky-400/50 underline-offset-4 transition-colors hover:text-sky-300"
-          >
-            hier
-          </a>
-          .
+          Bitte nutzt deshalb wieder den alten Katalog im Discord.
         </p>
 
         <a
